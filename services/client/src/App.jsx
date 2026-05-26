@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'sonner';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { LoginPage } from '@/pages/LoginPage';
 import { DocumentsPage } from '@/pages/DocumentsPage';
@@ -25,6 +26,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/documents" replace />} />
         </Routes>
       </BrowserRouter>
+      <Toaster richColors position="bottom-right" />
     </AuthProvider>
   );
 }
