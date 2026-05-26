@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { CallBar } from '@/components/CallBar';
+import { CallIncomingModal } from '@/components/CallIncomingModal';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 
@@ -18,8 +19,10 @@ export function DocumentPage() {
   const [content, setContent] = useState('');
   const saveTimeout = useRef(null);
 
+  const [isCallActive, setIsCallActive] = useState(false);
+
   const { send, on } = useWebSocket(token, documentId);
-  const { callState, isMuted, startCall, endCall, toggleMute, remoteAudioRef } = useWebRTC(send, on);
+  const { callState, isMuted, startCall, endCall, joinCall, acceptCall, rejectCall, toggleMute, remoteAudioRef } = useWebRTC(send, on, documentId);
 
 
   useEffect(() => {
@@ -32,6 +35,24 @@ export function DocumentPage() {
         setContent(doc.content || '');
       });
   }, [documentId, token]);
+
+  useEffect(() => {
+    return on('active_calls', ({ documentIds }) => {
+      setIsCallActive(documentIds.includes(documentId));
+    });
+  }, [on, documentId]);
+
+  useEffect(() => {
+    return on('call_started', ({ documentId: id }) => {
+      if (id === documentId) setIsCallActive(true);
+    });
+  }, [on, documentId]);
+
+  useEffect(() => {
+    return on('call_ended', ({ documentId: id }) => {
+      if (id === documentId) setIsCallActive(false);
+    });
+  }, [on, documentId]);
 
   useEffect(() => {
     return on('document_change', ({ content: newContent }) => {
@@ -62,6 +83,11 @@ export function DocumentPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
+      <CallIncomingModal
+        open={callState === 'incoming'}
+        onAccept={acceptCall}
+        onReject={rejectCall}
+      />
       <header className="border-b px-6 py-3 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate('/documents')}>
@@ -72,7 +98,9 @@ export function DocumentPage() {
         <CallBar
           callState={callState}
           isMuted={isMuted}
+          isCallActive={isCallActive}
           onCall={startCall}
+          onJoin={joinCall}
           onHangUp={endCall}
           onToggleMute={toggleMute}
           remoteAudioRef={remoteAudioRef}

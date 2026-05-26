@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { MoreVertical, Pencil, Trash2, Download, Upload, Move, FolderOpen, FileText, File } from 'lucide-react';
+import { MoreVertical, Pencil, Trash2, Download, Upload, Move, FolderOpen, FileText, File, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -32,7 +32,7 @@ function formatAbsoluteDate(value) {
   return new Date(value).toLocaleString('fr-FR');
 }
 
-export function DocumentItem({ doc, onOpen, onRefresh, token }) {
+export function DocumentItem({ doc, isCallActive, onOpen, onRefresh, token }) {
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(doc.name);
   const [deleting, setDeleting] = useState(false);
@@ -190,6 +190,12 @@ export function DocumentItem({ doc, onOpen, onRefresh, token }) {
       >
         {TYPE_ICON[doc.type]}
         <span className="flex-1 font-medium">{doc.name}</span>
+        {isCallActive && (
+          <span className="flex items-center gap-1 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+            <Phone className="w-3 h-3" />
+            Appel en cours
+          </span>
+        )}
         {doc.lastModifiedBy && (
           <span className="text-muted-foreground text-xs">{doc.lastModifiedBy.name}</span>
         )}

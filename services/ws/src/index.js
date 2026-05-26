@@ -1,4 +1,7 @@
-import 'dotenv/config';
+import { config } from 'dotenv';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../../.env') });
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import jwt from 'jsonwebtoken';
@@ -8,10 +11,19 @@ const server = createServer();
 const wss = new WebSocketServer({ server });
 
 const rooms = new Map();
+const activeCalls = new Set();
 
 function broadcast(documentId, message, exclude) {
   rooms.get(documentId)?.forEach(client => {
     if (client !== exclude && client.readyState === 1) {
+      client.send(JSON.stringify(message));
+    }
+  });
+}
+
+function broadcastAll(message) {
+  wss.clients.forEach(client => {
+    if (client.readyState === 1) {
       client.send(JSON.stringify(message));
     }
   });
@@ -27,6 +39,8 @@ wss.on('connection', (ws, req) => {
   }
 
   ws.documentId = null;
+
+  ws.send(JSON.stringify({ type: 'active_calls', documentIds: [...activeCalls] }));
 
   ws.on('message', (data) => {
     let msg;
@@ -51,11 +65,31 @@ wss.on('connection', (ws, req) => {
         broadcast(ws.documentId, { type: 'cursor', position: msg.position, userId: ws.user.id }, ws);
         break;
       }
-
-      case 'call_offer':
-      case 'call_answer':
-      case 'call_ice':
+      case 'call_offer': {
+        if (!ws.documentId) return;
+        activeCalls.add(ws.documentId);
+        broadcastAll({ type: 'call_started', documentId: ws.documentId });
+        broadcast(ws.documentId, { ...msg, userId: ws.user.id }, ws);
+        break;
+      }
       case 'call_end': {
+        if (!ws.documentId) return;
+        activeCalls.delete(ws.documentId);
+        broadcastAll({ type: 'call_ended', documentId: ws.documentId });
+        broadcast(ws.documentId, { ...msg, userId: ws.user.id }, ws);
+        break;
+      }
+      case 'call_rejected': {
+        if (!ws.documentId) return;
+        if (activeCalls.delete(ws.documentId)) {
+          broadcastAll({ type: 'call_ended', documentId: ws.documentId });
+        }
+        broadcast(ws.documentId, { ...msg, userId: ws.user.id }, ws);
+        break;
+      }
+      case 'call_join_request':
+      case 'call_answer':
+      case 'call_ice': {
         if (!ws.documentId) return;
         broadcast(ws.documentId, { ...msg, userId: ws.user.id }, ws);
         break;
@@ -67,7 +101,12 @@ wss.on('connection', (ws, req) => {
     if (!ws.documentId) return;
     rooms.get(ws.documentId)?.delete(ws);
     broadcast(ws.documentId, { type: 'user_left', userId: ws.user.id }, ws);
-    if (rooms.get(ws.documentId)?.size === 0) rooms.delete(ws.documentId);
+    if (rooms.get(ws.documentId)?.size === 0) {
+      rooms.delete(ws.documentId);
+      if (activeCalls.delete(ws.documentId)) {
+        broadcastAll({ type: 'call_ended', documentId: ws.documentId });
+      }
+    }
   });
 });
 

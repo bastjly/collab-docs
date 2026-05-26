@@ -1,4 +1,7 @@
-import 'dotenv/config';
+import { config } from 'dotenv';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../../.env') });
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
@@ -11,7 +14,7 @@ const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 const superAdmin = await prisma.user.upsert({
   where: { email: adminEmail },
   update: {},
-  create: { email: adminEmail, name: 'Admin', passwordHash: await bcrypt.hash('superadmin123', 10), role: 'SUPERADMIN' }
+  create: { email: adminEmail, name: 'Admin', passwordHash: await bcrypt.hash(adminPassword, 10), role: 'SUPERADMIN' }
 });
 console.log(`Superadmin créé : ${adminEmail} / ${adminPassword}`);
 

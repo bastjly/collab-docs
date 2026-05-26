@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { Header } from '@/components/Header';
-import { NewDocumentMenu } from '@/components/NewDocumentMenu';
-import { Breadcrumb } from '@/components/Breadcrumb';
-import { DropZoneOverlay } from '@/components/DropZoneOverlay';
-import { DocumentList } from '@/components/DocumentList';
+import { useWebSocket } from '@/hooks/useWebSocket';
 import { useFileUpload } from '@/hooks/useFileUpload';
+import { Header } from '@/components/Header';
+import { Breadcrumb } from '@/components/Breadcrumb';
+import { DocumentList } from '@/components/DocumentList';
+import { DropZoneOverlay } from '@/components/DropZoneOverlay';
+import { NewDocumentMenu } from '@/components/NewDocumentMenu';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -16,7 +17,10 @@ export function DocumentsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const parentId = searchParams.get('parent') || null;
   const [documents, setDocuments] = useState([]);
+  const [activeCalls, setActiveCalls] = useState(new Set());
   const [dragDepth, setDragDepth] = useState(0);
+
+  const { on } = useWebSocket(token);
 
   const refresh = useCallback(() => {
     const params = parentId ? `?parent_id=${parentId}` : '';
@@ -27,11 +31,31 @@ export function DocumentsPage() {
       .then(setDocuments);
   }, [token, parentId]);
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
   const { uploadFiles } = useFileUpload(parentId, token, refresh);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  useEffect(() => {
+    return on('active_calls', ({ documentIds }) => {
+      setActiveCalls(new Set(documentIds));
+    });
+  }, [on]);
+
+  useEffect(() => {
+    return on('call_started', ({ documentId }) => {
+      setActiveCalls(prev => new Set([...prev, documentId]));
+    });
+  }, [on]);
+
+  useEffect(() => {
+    return on('call_ended', ({ documentId }) => {
+      setActiveCalls(prev => {
+        const next = new Set(prev);
+        next.delete(documentId);
+        return next;
+      });
+    });
+  }, [on]);
 
   function open(doc) {
     if (doc.type === 'FOLDER') setSearchParams({ parent: doc.id });
@@ -69,6 +93,7 @@ export function DocumentsPage() {
         onDragOver={onDragOver}
         onDrop={onDrop}
       >
+        {dragDepth > 0 && <DropZoneOverlay />}
         <div className="flex items-center gap-3 mb-4">
           <Breadcrumb
             parentId={parentId}
@@ -81,11 +106,11 @@ export function DocumentsPage() {
         </div>
         <DocumentList
           documents={documents}
+          activeCalls={activeCalls}
           onOpen={open}
           onRefresh={refresh}
           token={token}
         />
-        {dragDepth > 0 && <DropZoneOverlay />}
       </main>
     </div>
   );
