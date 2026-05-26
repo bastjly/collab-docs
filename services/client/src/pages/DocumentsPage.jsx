@@ -1,26 +1,24 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { useFileUpload } from '@/hooks/useFileUpload';
 import { Header } from '@/components/Header';
-import { Button } from '@/components/ui/button';
+import { Breadcrumb } from '@/components/Breadcrumb';
+import { DocumentList } from '@/components/DocumentList';
+import { DropZoneOverlay } from '@/components/DropZoneOverlay';
 import { NewDocumentMenu } from '@/components/NewDocumentMenu';
-import { FolderOpen, FileText, File, Phone } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-
-const TYPE_ICON = {
-  FOLDER: <FolderOpen className="w-4 h-4" />,
-  TEXT: <FileText className="w-4 h-4" />,
-  FILE: <File className="w-4 h-4" />,
-};
 
 export function DocumentsPage() {
   const { token } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const parentId = searchParams.get('parent') || null;
   const [documents, setDocuments] = useState([]);
-  const [parentId, setParentId] = useState(null);
   const [activeCalls, setActiveCalls] = useState(new Set());
+  const [dragDepth, setDragDepth] = useState(0);
 
   const { on } = useWebSocket(token);
 
@@ -32,6 +30,8 @@ export function DocumentsPage() {
       .then(r => r.json())
       .then(setDocuments);
   }, [token, parentId]);
+
+  const { uploadFiles } = useFileUpload(parentId, token, refresh);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -58,48 +58,59 @@ export function DocumentsPage() {
   }, [on]);
 
   function open(doc) {
-    if (doc.type === 'FOLDER') setParentId(doc.id);
+    if (doc.type === 'FOLDER') setSearchParams({ parent: doc.id });
     else navigate(`/documents/${doc.id}`);
+  }
+
+  function onDragEnter(e) {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    setDragDepth(d => d + 1);
+  }
+
+  function onDragLeave() {
+    setDragDepth(d => Math.max(0, d - 1));
+  }
+
+  function onDragOver(e) {
+    if (e.dataTransfer.types.includes('Files')) e.preventDefault();
+  }
+
+  function onDrop(e) {
+    e.preventDefault();
+    setDragDepth(0);
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length) uploadFiles(files);
   }
 
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <main className="p-6 max-w-3xl mx-auto">
+      <main
+        className="relative p-6 max-w-3xl mx-auto"
+        onDragEnter={onDragEnter}
+        onDragLeave={onDragLeave}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+      >
+        {dragDepth > 0 && <DropZoneOverlay />}
         <div className="flex items-center gap-3 mb-4">
-          {parentId && (
-            <Button variant="ghost" size="sm" onClick={() => setParentId(null)}>
-              ← Retour
-            </Button>
-          )}
+          <Breadcrumb
+            parentId={parentId}
+            token={token}
+            onNavigate={(id) => (id ? setSearchParams({ parent: id }) : setSearchParams({}))}
+          />
           <div className="ml-auto">
             <NewDocumentMenu parentId={parentId} token={token} onCreated={refresh} />
           </div>
         </div>
-        <div className="divide-y border rounded-lg">
-          {documents.length === 0 && (
-            <p className="p-4 text-muted-foreground text-sm">Aucun document.</p>
-          )}
-          {documents.map(doc => (
-            <button
-              key={doc.id}
-              onClick={() => open(doc)}
-              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-accent text-left text-sm"
-            >
-              {TYPE_ICON[doc.type]}
-              <span className="flex-1 font-medium">{doc.name}</span>
-              {activeCalls.has(doc.id) && (
-                <span className="flex items-center gap-1 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                  <Phone className="w-3 h-3" />
-                  Appel en cours
-                </span>
-              )}
-              {doc.lastModifiedBy && (
-                <span className="text-muted-foreground text-xs">{doc.lastModifiedBy.name}</span>
-              )}
-            </button>
-          ))}
-        </div>
+        <DocumentList
+          documents={documents}
+          activeCalls={activeCalls}
+          onOpen={open}
+          onRefresh={refresh}
+          token={token}
+        />
       </main>
     </div>
   );

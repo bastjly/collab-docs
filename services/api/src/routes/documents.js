@@ -14,8 +14,11 @@ router.use(requireAuth);
 router.get('/', async (req, res) => {
   const { parent_id } = req.query;
   const docs = await prisma.document.findMany({
-    where: { parentId: parent_id ?? null },
-    include: { lastModifiedBy: { select: { name: true } } },
+    where: { parentId: parent_id ?? null, deletedAt: null },
+    include: {
+      lastModifiedBy: { select: { name: true } },
+      _count: { select: { children: true } }
+    },
     orderBy: [{ type: 'asc' }, { name: 'asc' }]
   });
   res.json(docs);
@@ -29,23 +32,87 @@ router.post('/', async (req, res) => {
   res.status(201).json(doc);
 });
 
+router.get('/folders', async (req, res) => {
+  const folders = await prisma.document.findMany({
+    where: { type: 'FOLDER', deletedAt: null },
+    select: { id: true, name: true, parentId: true },
+    orderBy: { name: 'asc' }
+  });
+  res.json(folders);
+});
+
 router.get('/:id', async (req, res) => {
-  const doc = await prisma.document.findUnique({ where: { id: req.params.id } });
+  const doc = await prisma.document.findFirst({ where: { id: req.params.id, deletedAt: null } });
   if (!doc) return res.status(404).json({ error: 'Document introuvable' });
   res.json(doc);
 });
 
+router.get('/:id/ancestors', async (req, res) => {
+  const ancestors = [];
+  let currentId = req.params.id;
+  for (let depth = 0; depth < 50 && currentId; depth++) {
+    const doc = await prisma.document.findFirst({
+      where: { id: currentId, deletedAt: null },
+      select: { id: true, name: true, parentId: true }
+    });
+    if (!doc) {
+      if (depth === 0) return res.status(404).json({ error: 'Document introuvable' });
+      break;
+    }
+    ancestors.unshift({ id: doc.id, name: doc.name });
+    currentId = doc.parentId;
+  }
+  res.json(ancestors);
+});
+
 router.patch('/:id', async (req, res) => {
-  const { content, name } = req.body;
+  const { content, name, parent_id } = req.body;
   const data = { lastModifiedById: req.user.id };
   if (content !== undefined) data.content = content;
   if (name) data.name = name;
+
+  if ('parent_id' in req.body) {
+    if (parent_id === req.params.id) {
+      return res.status(400).json({ error: 'Déplacement invalide' });
+    }
+    if (parent_id !== null) {
+      let cursor = parent_id;
+      for (let depth = 0; depth < 50 && cursor; depth++) {
+        if (cursor === req.params.id) {
+          return res.status(400).json({ error: 'Déplacement invalide' });
+        }
+        const parent = await prisma.document.findFirst({
+          where: { id: cursor, deletedAt: null },
+          select: { parentId: true }
+        });
+        if (!parent) {
+          return res.status(400).json({ error: 'Dossier cible introuvable' });
+        }
+        cursor = parent.parentId;
+      }
+    }
+    data.parentId = parent_id;
+  }
+
   const doc = await prisma.document.update({ where: { id: req.params.id }, data });
   res.json(doc);
 });
 
 router.delete('/:id', async (req, res) => {
-  await prisma.document.delete({ where: { id: req.params.id } });
+  await prisma.document.update({
+    where: { id: req.params.id },
+    data: { deletedAt: new Date() }
+  });
+  res.json({ success: true });
+});
+
+router.post('/:id/restore', async (req, res) => {
+  const doc = await prisma.document.findUnique({ where: { id: req.params.id } });
+  if (!doc) return res.status(404).json({ error: 'Document introuvable' });
+  await prisma.document.update({
+    where: { id: req.params.id },
+    data: { deletedAt: null }
+  });
   res.json({ success: true });
 });
 
@@ -59,7 +126,7 @@ router.post('/:id/upload', upload.single('file'), async (req, res) => {
 });
 
 router.get('/:id/download', async (req, res) => {
-  const doc = await prisma.document.findUnique({ where: { id: req.params.id } });
+  const doc = await prisma.document.findFirst({ where: { id: req.params.id, deletedAt: null } });
   if (!doc?.filePath) return res.status(404).json({ error: 'Aucun fichier' });
   res.download(path.join(__dirname, '../../uploads', doc.filePath), doc.fileName);
 });
