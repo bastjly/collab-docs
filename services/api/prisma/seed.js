@@ -11,9 +11,9 @@ const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 const superAdmin = await prisma.user.upsert({
   where: { email: adminEmail },
   update: {},
-  create: { email, name: 'Admin', passwordHash:  await bcrypt.hash('superadmin123', 10), role: 'SUPERADMIN' }
+  create: { email: adminEmail, name: 'Admin', passwordHash: await bcrypt.hash('superadmin123', 10), role: 'SUPERADMIN' }
 });
-console.log(`Superadmin créé : ${email} / ${password}`);
+console.log(`Superadmin créé : ${adminEmail} / ${adminPassword}`);
 
 
 const testUser = await prisma.user.upsert({
@@ -38,8 +38,8 @@ const doc = await prisma.document.upsert({
     name: 'Document de test',
     type: 'TEXT',
     content: 'Bienvenue sur Collab Docs ! Modifiez ce texte pour tester l\'édition collaborative et la CallBar.',
-    createdById: admin.id,
-    lastModifiedById: admin.id,
+    createdById: superAdmin.id,
+    lastModifiedById: superAdmin.id,
   }
 });
 console.log('Document de test créé');
