@@ -7,7 +7,6 @@ const PORT = process.env.WS_PORT || 3002;
 const server = createServer();
 const wss = new WebSocketServer({ server });
 
-// documentId -> Set<WebSocket>
 const rooms = new Map();
 
 function broadcast(documentId, message, exclude) {
@@ -52,7 +51,7 @@ wss.on('connection', (ws, req) => {
         broadcast(ws.documentId, { type: 'cursor', position: msg.position, userId: ws.user.id }, ws);
         break;
       }
-      // Signaling WebRTC (offer/answer/ice relayés entre pairs)
+
       case 'call_offer':
       case 'call_answer':
       case 'call_ice':
