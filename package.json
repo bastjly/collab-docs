@@ -1,0 +1,12 @@
+{
+  "name": "collab-docs",
+  "private": true,
+  "workspaces": ["services/*"],
+  "scripts": {
+    "dev": "concurrently -n api,ws,client -c blue,green,cyan \"npm run dev -w @collab-docs/api\" \"npm run dev -w @collab-docs/ws\" \"npm run dev -w @collab-docs/client\"",
+    "seed": "npm run seed -w @collab-docs/api"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
