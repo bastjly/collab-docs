@@ -12,11 +12,13 @@ router.post('/login', async (req, res) => {
   const { email, password, totp } = req.body;
   try {
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user || user.isBlocked) return res.status(401).json({ error: 'Identifiants invalides' });
+    if (!user) return res.status(401).json({ error: 'Identifiants invalides' });
     if (!await bcrypt.compare(password, user.passwordHash)) return res.status(401).json({ error: 'Identifiants invalides' });
+    if (user.isBlocked) return res.status(403).json({ error: 'Votre compte a été suspendu. Contactez un administrateur.' });
 
     if (user.totpEnabled) {
-      if (!totp || !authenticator.verify({ token: totp, secret: user.totpSecret })) {
+      if (!totp) return res.status(401).json({ requires2FA: true });
+      if (!authenticator.verify({ token: totp, secret: user.totpSecret })) {
         return res.status(401).json({ error: 'Code 2FA invalide', requires2FA: true });
       }
     }
@@ -51,6 +53,13 @@ router.post('/2fa/verify', requireAuth, async (req, res) => {
 });
 
 router.post('/2fa/disable', requireAuth, async (req, res) => {
+  const { totp } = req.body;
+  if (!totp) return res.status(400).json({ error: 'Code TOTP requis' });
+  const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+  if (!user.totpEnabled) return res.status(400).json({ error: 'Le MFA n\'est pas activé' });
+  if (!authenticator.verify({ token: totp, secret: user.totpSecret })) {
+    return res.status(400).json({ error: 'Code invalide' });
+  }
   await prisma.user.update({ where: { id: req.user.id }, data: { totpEnabled: false, totpSecret: null } });
   res.json({ success: true });
 });

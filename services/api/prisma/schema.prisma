@@ -63,6 +63,7 @@ model DocumentPermission {
 enum Role {
   USER
   ADMIN
+  SUPERADMIN
 }
 
 enum DocumentType {

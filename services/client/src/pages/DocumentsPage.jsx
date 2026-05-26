@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
+import { Header } from '@/components/Header';
 import { NewDocumentMenu } from '@/components/NewDocumentMenu';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { DropZoneOverlay } from '@/components/DropZoneOverlay';
@@ -11,7 +11,7 @@ import { useFileUpload } from '@/hooks/useFileUpload';
 const API = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export function DocumentsPage() {
-  const { token, logout } = useAuth();
+  const { token } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const parentId = searchParams.get('parent') || null;
@@ -61,10 +61,7 @@ export function DocumentsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b px-6 py-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Collab Docs</h1>
-        <Button variant="outline" onClick={logout}>Déconnexion</Button>
-      </header>
+      <Header />
       <main
         className="relative p-6 max-w-3xl mx-auto"
         onDragEnter={onDragEnter}
