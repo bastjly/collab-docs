@@ -42,9 +42,11 @@ model Document {
   lastModifiedBy   User?        @relation("LastModifiedBy", fields: [lastModifiedById], references: [id])
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
+  deletedAt        DateTime?
 
   permissions DocumentPermission[]
 
+  @@index([deletedAt])
   @@map("documents")
 }
 

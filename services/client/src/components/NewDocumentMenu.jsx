@@ -16,12 +16,14 @@ import {
   DialogFooter,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useFileUpload } from '@/hooks/useFileUpload';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export function NewDocumentMenu({ parentId, token, onCreated }) {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
+  const { uploadFiles } = useFileUpload(parentId, token, onCreated);
 
   const [dialogType, setDialogType] = useState(null);
   const [name, setName] = useState('');
@@ -71,23 +73,9 @@ export function NewDocumentMenu({ parentId, token, onCreated }) {
   }
 
   async function handleFileChosen(e) {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files || []);
     e.target.value = '';
-    if (!file) return;
-    try {
-      const doc = await createDocument('FILE', file.name);
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch(`${API}/api/documents/${doc.id}/upload`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-      if (!res.ok) throw new Error("Échec de l'upload");
-      onCreated();
-    } catch (err) {
-      alert(err.message);
-    }
+    if (files.length) await uploadFiles(files);
   }
 
   const dialogTitle = dialogType === 'FOLDER' ? 'Nouveau dossier' : 'Nouveau document';
@@ -120,6 +108,7 @@ export function NewDocumentMenu({ parentId, token, onCreated }) {
       <input
         ref={fileInputRef}
         type="file"
+        multiple
         className="hidden"
         onChange={handleFileChosen}
       />
