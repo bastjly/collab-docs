@@ -7,12 +7,14 @@ const prisma = new PrismaClient();
 const adminEmail = process.env.ADMIN_EMAIL || 'admin@collab-docs.fr';
 const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 
-const admin = await prisma.user.upsert({
+
+const superAdmin = await prisma.user.upsert({
   where: { email: adminEmail },
   update: {},
-  create: { email: adminEmail, name: 'Admin', passwordHash: await bcrypt.hash(adminPassword, 10), role: 'ADMIN' }
+  create: { email, name: 'Admin', passwordHash:  await bcrypt.hash('superadmin123', 10), role: 'SUPERADMIN' }
 });
-console.log(`Admin créé : ${adminEmail} / ${adminPassword}`);
+console.log(`Superadmin créé : ${email} / ${password}`);
+
 
 const testUser = await prisma.user.upsert({
   where: { email: 'user@collab-docs.fr' },
