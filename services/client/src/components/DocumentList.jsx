@@ -1,6 +1,6 @@
 import { DocumentItem } from './DocumentItem';
 
-export function DocumentList({ documents, onOpen, onRefresh, token }) {
+export function DocumentList({ documents, activeCalls, onOpen, onRefresh, token }) {
   if (documents.length === 0) {
     return (
       <div className="border rounded-lg">
@@ -14,6 +14,7 @@ export function DocumentList({ documents, onOpen, onRefresh, token }) {
         <DocumentItem
           key={doc.id}
           doc={doc}
+          isCallActive={activeCalls?.has(doc.id)}
           onOpen={onOpen}
           onRefresh={onRefresh}
           token={token}

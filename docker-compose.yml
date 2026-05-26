@@ -15,38 +15,5 @@ services:
       timeout: 5s
       retries: 5
 
-  api:
-    build: ./services/api
-    command: sh -c "npx prisma db push && npm run dev"
-    environment:
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      JWT_SECRET: ${JWT_SECRET}
-      API_PORT: 3001
-      CLIENT_URL: ${CLIENT_URL:-http://localhost:5173}
-    volumes:
-      - ./services/api:/app
-      - api_modules:/app/node_modules
-      - uploads:/app/uploads
-    ports:
-      - "3001:3001"
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-  ws:
-    build: ./services/ws
-    command: npm run dev
-    environment:
-      JWT_SECRET: ${JWT_SECRET}
-      WS_PORT: 3002
-    volumes:
-      - ./services/ws:/app
-      - ws_modules:/app/node_modules
-    ports:
-      - "3002:3002"
-
 volumes:
   postgres_data:
-  uploads:
-  api_modules:
-  ws_modules:
