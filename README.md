@@ -15,6 +15,7 @@ Application collaborative d'édition de documents en temps réel.
 ### Prérequis
 
 - [Docker](https://www.docker.com/) et Docker Compose (ou [Podman](https://podman.io/) + podman-compose)
+- Node.js 20+
 
 ### 1. Configuration
 
@@ -24,7 +25,7 @@ cp .env.example .env
 
 Renseigner toutes les valeurs dans `.env` (mots de passe, secret JWT). Aucune valeur par défaut n'est fournie pour les secrets.
 
-### 2. Premier démarrage
+### 2. Démarrer le backend
 
 ```bash
 docker compose up --build
@@ -40,9 +41,17 @@ Dans un second terminal, une fois les conteneurs démarrés :
 docker compose exec api npm run seed
 ```
 
-Cela crée le compte admin défini dans `.env` (`ADMIN_EMAIL` / `ADMIN_PASSWORD`).
+### 4. Démarrer le client
 
-### 4. Accéder à l'application
+Le client tourne en local pour un hot reload natif sans Docker :
+
+```bash
+cd services/client
+npm install
+npm run dev
+```
+
+### 5. Accéder à l'application
 
 | Service | URL                   |
 |---------|-----------------------|
@@ -54,38 +63,34 @@ Cela crée le compte admin défini dans `.env` (`ADMIN_EMAIL` / `ADMIN_PASSWORD`
 
 ## Utilisation quotidienne
 
-Le hot reload est actif sur tous les services : les modifications de fichiers sont prises en compte automatiquement sans redémarrage.
-
 ```bash
-docker compose up       # démarrer
-docker compose down     # arrêter (conserve les données)
+# Terminal 1 — backend
+docker compose up
+
+# Terminal 2 — frontend (hot reload natif, npm install uniquement à la première fois)
+cd services/client && npm run dev
 ```
+
+Pour ajouter une lib frontend : `npm install <lib>` dans `services/client`, le serveur Vite redémarre tout seul.
 
 ---
 
-## Gestion des dépendances
+## Gestion des dépendances backend
 
-`--build` est nécessaire uniquement quand un `package.json` ou un `Dockerfile` est modifié.
-
-### Mettre à jour les dépendances d'un seul service
+`--build` est nécessaire uniquement quand un `package.json` ou un `Dockerfile` de l'API ou du WS est modifié.
 
 ```bash
+# Mettre à jour les dépendances d'un service backend
 docker compose down
-docker volume rm collab-docs_client_modules   # ou api_modules / ws_modules
-docker compose up --build client              # ou api / ws
-```
+docker volume rm collab-docs_api_modules   # ou ws_modules
+docker compose up --build api              # ou ws
 
-### Réinitialiser tous les modules sans toucher à la base de données
-
-```bash
+# Tout réinitialiser sans toucher à la base de données
 docker compose down
-docker volume rm collab-docs_api_modules collab-docs_ws_modules collab-docs_client_modules
+docker volume rm collab-docs_api_modules collab-docs_ws_modules
 docker compose up --build
-```
 
-### Tout réinitialiser base de données incluse
-
-```bash
+# Tout réinitialiser base de données incluse
 docker compose down -v
 docker compose up --build
 docker compose exec api npm run seed
@@ -93,34 +98,7 @@ docker compose exec api npm run seed
 
 ---
 
-## Développement sans Docker
-
-### Prérequis
-
-- Node.js 20+
-- PostgreSQL local
-
-### Installation
-
-```bash
-npm install
-```
-
-Créer un fichier `.env` dans `services/api/` avec la `DATABASE_URL` pointant vers votre PostgreSQL local, puis :
-
-```bash
-npm run dev -w @collab-docs/api     # API sur :3001
-npm run dev -w @collab-docs/ws      # WS sur :3002
-npm run dev -w @collab-docs/client  # Client sur :5173
-```
-
-Ou tout en parallèle depuis la racine :
-
-```bash
-npm run dev
-```
-
-### Commandes Prisma utiles
+## Commandes Prisma utiles
 
 ```bash
 # Appliquer le schéma (sans migrations)
