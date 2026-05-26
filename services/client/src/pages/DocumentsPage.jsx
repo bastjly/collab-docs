@@ -1,16 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/ui/button';
+import { NewDocumentMenu } from '@/components/NewDocumentMenu';
 import { FolderOpen, FileText, File } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 const TYPE_ICON = {
-  folder: <FolderOpen className="w-4 h-4" />,
-  text: <FileText className="w-4 h-4" />,
-  file: <File className="w-4 h-4" />,
+  FOLDER: <FolderOpen className="w-4 h-4" />,
+  TEXT: <FileText className="w-4 h-4" />,
+  FILE: <File className="w-4 h-4" />,
 };
 
 export function DocumentsPage() {
@@ -19,7 +20,7 @@ export function DocumentsPage() {
   const [documents, setDocuments] = useState([]);
   const [parentId, setParentId] = useState(null);
 
-  useEffect(() => {
+  const refresh = useCallback(() => {
     const params = parentId ? `?parent_id=${parentId}` : '';
     fetch(`${API}/api/documents${params}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -28,8 +29,12 @@ export function DocumentsPage() {
       .then(setDocuments);
   }, [token, parentId]);
 
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
   function open(doc) {
-    if (doc.type === 'folder') setParentId(doc.id);
+    if (doc.type === 'FOLDER') setParentId(doc.id);
     else navigate(`/documents/${doc.id}`);
   }
 
@@ -37,11 +42,16 @@ export function DocumentsPage() {
     <div className="min-h-screen bg-background">
       <Header />
       <main className="p-6 max-w-3xl mx-auto">
-        {parentId && (
-          <Button variant="ghost" size="sm" className="mb-4" onClick={() => setParentId(null)}>
-            ← Retour
-          </Button>
-        )}
+        <div className="flex items-center gap-3 mb-4">
+          {parentId && (
+            <Button variant="ghost" size="sm" onClick={() => setParentId(null)}>
+              ← Retour
+            </Button>
+          )}
+          <div className="ml-auto">
+            <NewDocumentMenu parentId={parentId} token={token} onCreated={refresh} />
+          </div>
+        </div>
         <div className="divide-y border rounded-lg">
           {documents.length === 0 && (
             <p className="p-4 text-muted-foreground text-sm">Aucun document.</p>
@@ -55,7 +65,7 @@ export function DocumentsPage() {
               {TYPE_ICON[doc.type]}
               <span className="flex-1 font-medium">{doc.name}</span>
               {doc.lastModifiedBy && (
-                <span className="text-muted-foreground text-xs">{doc.lastModifiedByName}</span>
+                <span className="text-muted-foreground text-xs">{doc.lastModifiedBy.name}</span>
               )}
             </button>
           ))}

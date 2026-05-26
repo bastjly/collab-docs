@@ -9,7 +9,7 @@ export function CallBar({ callState, isMuted, onCall, onHangUp, onToggleMute, re
       {callState === 'idle' && (
         <Button size="sm" variant="outline" onClick={onCall}>
           <Phone className="w-4 h-4 mr-2" />
-          Appeler
+          Appeler les collaborateurs du document
         </Button>
       )}
 
