@@ -1,17 +1,16 @@
 import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    setToken(null);
-  };
-
+  const handleLogout = () => { localStorage.removeItem('token'); setToken(null); };
   if (!token) return <Login onLogin={setToken} />;
-  return <Dashboard token={token} onLogout={handleLogout} />;
+  return <Dashboard onLogout={handleLogout} />;
 }
 
 function Login({ onLogin }) {
@@ -20,15 +19,19 @@ function Login({ onLogin }) {
   const [totp, setTotp] = useState('');
   const [requires2FA, setRequires2FA] = useState(false);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
+    setLoading(true);
+    setError('');
     const res = await fetch(`${API}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, ...(totp && { totp }) }),
     });
     const data = await res.json();
+    setLoading(false);
     if (data.requires2FA) { setRequires2FA(true); return; }
     if (!res.ok) { setError(data.error); return; }
     localStorage.setItem('token', data.token);
@@ -36,27 +39,48 @@ function Login({ onLogin }) {
   }
 
   return (
-    <div style={{ maxWidth: 380, margin: '100px auto', padding: 24 }}>
-      <h1>Collab Docs</h1>
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required />
-        <input type="password" placeholder="Mot de passe" value={password} onChange={e => setPassword(e.target.value)} required />
-        {requires2FA && <input placeholder="Code 2FA" value={totp} onChange={e => setTotp(e.target.value)} maxLength={6} />}
-        {error && <p style={{ color: 'red', margin: 0 }}>{error}</p>}
-        <button type="submit">Connexion</button>
-      </form>
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <CardTitle className="text-2xl">Collab Docs</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="password">Mot de passe</Label>
+              <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} required />
+            </div>
+            {requires2FA && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="totp">Code 2FA</Label>
+                <Input id="totp" placeholder="000000" maxLength={6} value={totp} onChange={e => setTotp(e.target.value)} />
+              </div>
+            )}
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Connexion...' : 'Se connecter'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
-function Dashboard({ token, onLogout }) {
+function Dashboard({ onLogout }) {
   return (
-    <div style={{ padding: 24 }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1>Collab Docs</h1>
-        <button onClick={onLogout}>Déconnexion</button>
+    <div className="min-h-screen bg-background">
+      <header className="border-b px-6 py-4 flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Collab Docs</h1>
+        <Button variant="outline" onClick={onLogout}>Déconnexion</Button>
       </header>
-      <p>Bienvenue ! L'application est en cours de développement.</p>
+      <main className="p-6">
+        <p className="text-muted-foreground">L'application est en cours de développement.</p>
+      </main>
     </div>
   );
 }

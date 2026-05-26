@@ -25,7 +25,7 @@ services:
       CLIENT_URL: ${CLIENT_URL:-http://localhost:5173}
     volumes:
       - ./services/api:/app
-      - /app/node_modules
+      - api_modules:/app/node_modules
       - uploads:/app/uploads
     ports:
       - "3001:3001"
@@ -41,7 +41,7 @@ services:
       WS_PORT: 3002
     volumes:
       - ./services/ws:/app
-      - /app/node_modules
+      - ws_modules:/app/node_modules
     ports:
       - "3002:3002"
 
@@ -53,7 +53,7 @@ services:
       VITE_WS_URL: ${VITE_WS_URL:-ws://localhost:3002}
     volumes:
       - ./services/client:/app
-      - /app/node_modules
+      - client_modules:/app/node_modules
     ports:
       - "5173:5173"
     depends_on:
@@ -63,3 +63,6 @@ services:
 volumes:
   postgres_data:
   uploads:
+  api_modules:
+  ws_modules:
+  client_modules:
