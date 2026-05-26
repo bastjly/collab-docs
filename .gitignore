@@ -4,3 +4,4 @@ dist/
 packages/api/uploads/
 *.log
 .DS_Store
+.idea
