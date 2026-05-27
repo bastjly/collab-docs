@@ -6,94 +6,32 @@ import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
+import { rooms, activeCalls } from './store.js';
+import { broadcast, broadcastAll } from './broadcast.js';
+import { handleJoin, handleDocumentChange, handleCursor } from './handlers/document.js';
+import { handleCallOffer, handleCallEnd, handleCallRejected, handleCallSignaling } from './handlers/call.js';
+import { handleChatMessage } from './handlers/chat.js';
 
 const prisma = new PrismaClient();
-
 const PORT = process.env.WS_PORT || 3002;
 const server = createServer();
 const wss = new WebSocketServer({ server });
-
-const rooms = new Map();
-const activeCalls = new Set();
-
-function broadcast(documentId, message, exclude) {
-  rooms.get(documentId)?.forEach(client => {
-    if (client !== exclude && client.readyState === 1) {
-      client.send(JSON.stringify(message));
-    }
-  });
-}
-
-function broadcastAll(message) {
-  const raw = JSON.stringify(message);
-  for (const client of wss.clients) {
-    if (client.readyState === 1) client.send(raw);
-  }
-}
 
 function handleMessage(ws, data) {
   let msg;
   try { msg = JSON.parse(data); } catch { return; }
 
   switch (msg.type) {
-    case 'join': {
-      if (ws.documentId) rooms.get(ws.documentId)?.delete(ws);
-      ws.documentId = msg.documentId;
-      if (!rooms.has(msg.documentId)) rooms.set(msg.documentId, new Set());
-      rooms.get(msg.documentId).add(ws);
-      broadcast(msg.documentId, { type: 'user_joined', user: { id: ws.user.id, name: ws.user.email } }, ws);
-      break;
-    }
-    case 'document_change': {
-      if (!ws.documentId) return;
-      broadcast(ws.documentId, { type: 'document_change', content: msg.content, userId: ws.user.id }, ws);
-      break;
-    }
-    case 'cursor': {
-      if (!ws.documentId) return;
-      broadcast(ws.documentId, { type: 'cursor', position: msg.position, name: msg.name, userId: ws.user.id }, ws);
-      break;
-    }
-    case 'call_offer': {
-      if (!ws.documentId) return;
-      activeCalls.add(ws.documentId);
-      broadcastAll({ type: 'call_started', documentId: ws.documentId });
-      broadcast(ws.documentId, { ...msg, userId: ws.user.id }, ws);
-      break;
-    }
-    case 'call_end': {
-      if (!ws.documentId) return;
-      activeCalls.delete(ws.documentId);
-      broadcastAll({ type: 'call_ended', documentId: ws.documentId });
-      broadcast(ws.documentId, { ...msg, userId: ws.user.id }, ws);
-      break;
-    }
-    case 'call_rejected': {
-      if (!ws.documentId) return;
-      if (activeCalls.delete(ws.documentId)) {
-        broadcastAll({ type: 'call_ended', documentId: ws.documentId });
-      }
-      broadcast(ws.documentId, { ...msg, userId: ws.user.id }, ws);
-      break;
-    }
+    case 'join':               handleJoin(ws, msg); break;
+    case 'document_change':    handleDocumentChange(ws, msg); break;
+    case 'cursor':             handleCursor(ws, msg); break;
+    case 'call_offer':         handleCallOffer(ws, msg, wss.clients); break;
+    case 'call_end':           handleCallEnd(ws, msg, wss.clients); break;
+    case 'call_rejected':      handleCallRejected(ws, msg, wss.clients); break;
     case 'call_join_request':
     case 'call_answer':
-    case 'call_ice': {
-      if (!ws.documentId) return;
-      broadcast(ws.documentId, { ...msg, userId: ws.user.id }, ws);
-      break;
-    }
-    case 'chat_message': {
-      if (!ws.documentId) return;
-      broadcast(ws.documentId, {
-        type: 'chat_message',
-        id: msg.id,
-        content: msg.content,
-        createdAt: msg.createdAt,
-        author: { id: ws.user.id, name: ws.user.name || ws.user.email },
-      }, ws);
-      break;
-    }
+    case 'call_ice':           handleCallSignaling(ws, msg); break;
+    case 'chat_message':       handleChatMessage(ws, msg); break;
   }
 }
 
@@ -108,7 +46,7 @@ wss.on('connection', async (ws, req) => {
   }
 
   ws.documentId = null;
-  
+
   let ready = false;
   const pending = [];
   ws.on('message', (data) => {
@@ -123,7 +61,7 @@ wss.on('connection', async (ws, req) => {
     if (rooms.get(ws.documentId)?.size === 0) {
       rooms.delete(ws.documentId);
       if (activeCalls.delete(ws.documentId)) {
-        broadcastAll({ type: 'call_ended', documentId: ws.documentId });
+        broadcastAll(wss.clients, { type: 'call_ended', documentId: ws.documentId });
       }
     }
   });
@@ -139,7 +77,6 @@ wss.on('connection', async (ws, req) => {
   }
 
   ws.user = dbUser;
-
   ws.send(JSON.stringify({ type: 'active_calls', documentIds: [...activeCalls] }));
 
   ready = true;

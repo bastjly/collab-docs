@@ -1,7 +1,6 @@
 node_modules/
 .env
 dist/
-packages/api/uploads/
 *.log
 .DS_Store
 .idea/
