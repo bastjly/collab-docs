@@ -11,10 +11,11 @@ const adminEmail = process.env.ADMIN_EMAIL || 'admin@collab-docs.fr';
 const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 
 
+const adminHash = await bcrypt.hash(adminPassword, 10);
 const superAdmin = await prisma.user.upsert({
   where: { email: adminEmail },
-  update: {},
-  create: { email: adminEmail, name: 'Admin', passwordHash: await bcrypt.hash(adminPassword, 10), role: 'SUPERADMIN' }
+  update: { passwordHash: adminHash },
+  create: { email: adminEmail, name: 'Admin', passwordHash: adminHash, role: 'SUPERADMIN' }
 });
 console.log(`Superadmin créé : ${adminEmail} / ${adminPassword}`);
 

@@ -11,6 +11,75 @@ import { ArrowLeft, UserPlus } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
+function FileViewer({ document, token }) {
+  const [blobUrl, setBlobUrl] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let url;
+    setLoading(true);
+    setError(null);
+    fetch(`${API}/api/documents/${document.id}/download`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => {
+        if (!r.ok) throw new Error('Fichier introuvable');
+        return r.blob();
+      })
+      .then(blob => {
+        const typed = document.mimeType
+          ? new Blob([blob], { type: document.mimeType })
+          : blob;
+        url = URL.createObjectURL(typed);
+        setBlobUrl(url);
+        setLoading(false);
+      })
+      .catch(err => {
+        setError(err.message);
+        setLoading(false);
+      });
+    return () => { if (url) URL.revokeObjectURL(url); };
+  }, [document.id, document.mimeType, token]);
+
+  if (loading) return <div className="p-6 text-muted-foreground">Chargement du fichier...</div>;
+  if (error) return <div className="p-6 text-destructive">{error}</div>;
+  if (!blobUrl) return null;
+
+  const mime = document.mimeType || '';
+
+  if (mime.startsWith('image/')) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-6 overflow-auto">
+        <img src={blobUrl} alt={document.fileName} className="max-w-full max-h-full object-contain rounded" />
+      </div>
+    );
+  }
+
+  if (mime === 'application/pdf') {
+    return (
+      <iframe
+        src={blobUrl}
+        title={document.fileName}
+        className="flex-1 w-full border-none"
+        style={{ minHeight: 0 }}
+      />
+    );
+  }
+
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6 text-muted-foreground">
+      <p>Aperçu non disponible pour ce type de fichier.</p>
+      <a href={blobUrl} download={document.fileName}>
+        <Button>
+          <Download className="w-4 h-4 mr-2" />
+          Télécharger {document.fileName}
+        </Button>
+      </a>
+    </div>
+  );
+}
+
 export function DocumentPage() {
   const { id: documentId } = useParams();
   const navigate = useNavigate();
@@ -30,7 +99,6 @@ export function DocumentPage() {
 
   const { send, on } = useWebSocket(token, documentId);
   const { callState, isMuted, startCall, endCall, joinCall, acceptCall, rejectCall, toggleMute, remoteAudioRef } = useWebRTC(send, on, documentId);
-
 
   useEffect(() => {
     fetch(`${API}/api/documents/${documentId}`, {
@@ -103,7 +171,7 @@ export function DocumentPage() {
       />
       <header className="border-b px-6 py-3 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/documents')}>
+          <Button variant="ghost" size="icon" onClick={() => navigate(document.parentId ? `/documents?parent=${document.parentId}` : '/documents')}>
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <h1 className="text-lg font-semibold">{document.name}</h1>
@@ -128,14 +196,18 @@ export function DocumentPage() {
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col p-6">
-        <textarea
-          className="flex-1 w-full resize-none bg-transparent text-sm focus:outline-none font-mono"
-          placeholder="Commencez à écrire..."
-          value={content}
-          onChange={handleChange}
-        />
-      </main>
+      {document.type === 'FILE' ? (
+        <FileViewer document={document} token={token} />
+      ) : (
+        <main className="flex-1 flex flex-col p-6">
+          <textarea
+            className="flex-1 w-full resize-none bg-transparent text-sm focus:outline-none font-mono"
+            placeholder="Commencez à écrire..."
+            value={content}
+            onChange={handleChange}
+          />
+        </main>
+      )}
     </div>
   );
 }
