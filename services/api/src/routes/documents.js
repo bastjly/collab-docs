@@ -6,7 +6,12 @@ import prisma from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const upload = multer({ dest: path.join(__dirname, '../../uploads') });
+const upload = multer({ dest: path.join(__dirname, '../../uploads'),
+  limits: {
+    fileSize: 50 * 1024 * 1024,
+    files: 1
+  },
+ });
 
 const router = Router();
 router.use(requireAuth);
