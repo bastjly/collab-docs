@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useFileUpload } from '@/hooks/useFileUpload';
+import { useDragAndDrop } from '@/hooks/useDragAndDrop';
 import { Header } from '@/components/Header';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { DocumentList } from '@/components/DocumentList';
@@ -18,7 +19,6 @@ export function DocumentsPage() {
   const parentId = searchParams.get('parent') || null;
   const [documents, setDocuments] = useState([]);
   const [activeCalls, setActiveCalls] = useState(new Set());
-  const [dragDepth, setDragDepth] = useState(0);
 
   const { on } = useWebSocket(token);
 
@@ -27,11 +27,12 @@ export function DocumentsPage() {
     fetch(`${API}/api/documents${params}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then(r => r.json())
-      .then(setDocuments);
+        .then(r => r.json())
+        .then(setDocuments);
   }, [token, parentId]);
 
   const { uploadFiles } = useFileUpload(parentId, token, refresh);
+  const { isDragging, dragHandlers } = useDragAndDrop(uploadFiles);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -62,56 +63,29 @@ export function DocumentsPage() {
     else navigate(`/documents/${doc.id}`);
   }
 
-  function onDragEnter(e) {
-    if (!e.dataTransfer.types.includes('Files')) return;
-    e.preventDefault();
-    setDragDepth(d => d + 1);
-  }
-
-  function onDragLeave() {
-    setDragDepth(d => Math.max(0, d - 1));
-  }
-
-  function onDragOver(e) {
-    if (e.dataTransfer.types.includes('Files')) e.preventDefault();
-  }
-
-  function onDrop(e) {
-    e.preventDefault();
-    setDragDepth(0);
-    const files = Array.from(e.dataTransfer.files || []);
-    if (files.length) uploadFiles(files);
-  }
-
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <main
-        className="relative p-6 max-w-3xl mx-auto"
-        onDragEnter={onDragEnter}
-        onDragLeave={onDragLeave}
-        onDragOver={onDragOver}
-        onDrop={onDrop}
-      >
-        {dragDepth > 0 && <DropZoneOverlay />}
-        <div className="flex items-center gap-3 mb-4">
-          <Breadcrumb
-            parentId={parentId}
-            token={token}
-            onNavigate={(id) => (id ? setSearchParams({ parent: id }) : setSearchParams({}))}
-          />
-          <div className="ml-auto">
-            <NewDocumentMenu parentId={parentId} token={token} onCreated={refresh} />
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="relative p-6 max-w-3xl mx-auto" {...dragHandlers}>
+          {isDragging && <DropZoneOverlay />}
+          <div className="flex items-center gap-3 mb-4">
+            <Breadcrumb
+                parentId={parentId}
+                token={token}
+                onNavigate={(id) => (id ? setSearchParams({ parent: id }) : setSearchParams({}))}
+            />
+            <div className="ml-auto">
+              <NewDocumentMenu parentId={parentId} token={token} onCreated={refresh} />
+            </div>
           </div>
-        </div>
-        <DocumentList
-          documents={documents}
-          activeCalls={activeCalls}
-          onOpen={open}
-          onRefresh={refresh}
-          token={token}
-        />
-      </main>
-    </div>
+          <DocumentList
+              documents={documents}
+              activeCalls={activeCalls}
+              onOpen={open}
+              onRefresh={refresh}
+              token={token}
+          />
+        </main>
+      </div>
   );
 }
