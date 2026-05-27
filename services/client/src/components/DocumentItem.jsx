@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { MoreVertical, Pencil, Trash2, Download, Upload, Move, FolderOpen, FileText, File, Phone } from 'lucide-react';
+import { MoreVertical, Pencil, Trash2, Download, Upload, Move, FolderOpen, FileText, File, Phone, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -190,6 +190,12 @@ export function DocumentItem({ doc, isCallActive, onOpen, onRefresh, token }) {
       >
         {TYPE_ICON[doc.type]}
         <span className="flex-1 font-medium">{doc.name}</span>
+        {doc._count?.permissions > 0 && (
+          <span className="flex items-center gap-1 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+            <Users className="w-3 h-3" />
+            {doc._count.permissions}
+          </span>
+        )}
         {isCallActive && (
           <span className="flex items-center gap-1 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
             <Phone className="w-3 h-3" />

@@ -5,6 +5,9 @@ config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../../.env')
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import jwt from 'jsonwebtoken';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 const PORT = process.env.WS_PORT || 3002;
 const server = createServer();
@@ -29,14 +32,27 @@ function broadcastAll(message) {
   });
 }
 
-wss.on('connection', (ws, req) => {
+wss.on('connection', async (ws, req) => {
   const token = new URL(req.url, 'ws://localhost').searchParams.get('token');
+  let payload;
   try {
-    ws.user = jwt.verify(token, process.env.JWT_SECRET);
+    payload = jwt.verify(token, process.env.JWT_SECRET);
   } catch {
     ws.close(1008, 'Unauthorized');
     return;
   }
+
+  const dbUser = await prisma.user.findUnique({
+    where: { id: payload.id },
+    select: { id: true, email: true, role: true, isBlocked: true }
+  });
+
+  if (!dbUser || dbUser.isBlocked) {
+    ws.close(1008, 'Forbidden');
+    return;
+  }
+
+  ws.user = dbUser;
 
   ws.documentId = null;
 

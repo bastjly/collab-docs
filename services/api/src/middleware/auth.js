@@ -1,10 +1,18 @@
 import jwt from 'jsonwebtoken';
+import prisma from '../db.js';
 
-export function requireAuth(req, res, next) {
+export async function requireAuth(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'Non authentifié' });
   try {
-    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await prisma.user.findUnique({
+      where: { id: payload.id },
+      select: { id: true, email: true, role: true, isBlocked: true }
+    });
+    if (!user) return res.status(401).json({ error: 'Utilisateur introuvable' });
+    if (user.isBlocked) return res.status(403).json({ error: 'Votre compte a été suspendu. Contactez un administrateur.' });
+    req.user = user;
     next();
   } catch {
     res.status(401).json({ error: 'Token invalide' });

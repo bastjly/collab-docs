@@ -11,13 +11,23 @@ const upload = multer({ dest: path.join(__dirname, '../../uploads') });
 const router = Router();
 router.use(requireAuth);
 
+function accessFilter(user) {
+  if (user.role === 'ADMIN' || user.role === 'SUPERADMIN') return {};
+  return {
+    OR: [
+      { createdById: user.id },
+      { permissions: { some: { userId: user.id } } }
+    ]
+  };
+}
+
 router.get('/', async (req, res) => {
   const { parent_id } = req.query;
   const docs = await prisma.document.findMany({
-    where: { parentId: parent_id ?? null, deletedAt: null },
+    where: { parentId: parent_id ?? null, deletedAt: null, ...accessFilter(req.user) },
     include: {
       lastModifiedBy: { select: { name: true } },
-      _count: { select: { children: true } }
+      _count: { select: { children: true, permissions: true } }
     },
     orderBy: [{ type: 'asc' }, { name: 'asc' }]
   });
@@ -34,7 +44,7 @@ router.post('/', async (req, res) => {
 
 router.get('/folders', async (req, res) => {
   const folders = await prisma.document.findMany({
-    where: { type: 'FOLDER', deletedAt: null },
+    where: { type: 'FOLDER', deletedAt: null, ...accessFilter(req.user) },
     select: { id: true, name: true, parentId: true },
     orderBy: { name: 'asc' }
   });
@@ -42,7 +52,7 @@ router.get('/folders', async (req, res) => {
 });
 
 router.get('/:id', async (req, res) => {
-  const doc = await prisma.document.findFirst({ where: { id: req.params.id, deletedAt: null } });
+  const doc = await prisma.document.findFirst({ where: { id: req.params.id, deletedAt: null, ...accessFilter(req.user) } });
   if (!doc) return res.status(404).json({ error: 'Document introuvable' });
   res.json(doc);
 });
@@ -131,12 +141,39 @@ router.get('/:id/download', async (req, res) => {
   res.download(path.join(__dirname, '../../uploads', doc.filePath), doc.fileName);
 });
 
+router.get('/:id/collaborators', async (req, res) => {
+  const doc = await prisma.document.findFirst({ where: { id: req.params.id, deletedAt: null }, select: { id: true } });
+  if (!doc) return res.status(404).json({ error: 'Document introuvable' });
+  const perms = await prisma.documentPermission.findMany({
+    where: { documentId: req.params.id },
+    include: { user: { select: { id: true, name: true, email: true } } }
+  });
+  res.json(perms.map(p => p.user));
+});
+
 router.post('/:id/invite', async (req, res) => {
   const { user_id } = req.body;
+  const doc = await prisma.document.findFirst({ where: { id: req.params.id, deletedAt: null }, select: { createdById: true } });
+  if (!doc) return res.status(404).json({ error: 'Document introuvable' });
+  const isOwner = doc.createdById === req.user.id;
+  const isAdmin = req.user.role === 'ADMIN' || req.user.role === 'SUPERADMIN';
+  if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Accès refusé' });
   await prisma.documentPermission.upsert({
     where: { documentId_userId: { documentId: req.params.id, userId: user_id } },
     update: {},
     create: { documentId: req.params.id, userId: user_id }
+  });
+  res.json({ success: true });
+});
+
+router.delete('/:id/collaborators/:userId', async (req, res) => {
+  const doc = await prisma.document.findFirst({ where: { id: req.params.id, deletedAt: null }, select: { createdById: true } });
+  if (!doc) return res.status(404).json({ error: 'Document introuvable' });
+  const isOwner = doc.createdById === req.user.id;
+  const isAdmin = req.user.role === 'ADMIN' || req.user.role === 'SUPERADMIN';
+  if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Accès refusé' });
+  await prisma.documentPermission.deleteMany({
+    where: { documentId: req.params.id, userId: req.params.userId }
   });
   res.json({ success: true });
 });

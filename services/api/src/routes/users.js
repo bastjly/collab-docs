@@ -33,6 +33,23 @@ router.patch('/me', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
+router.get('/search', requireAuth, async (req, res) => {
+  const { q = '' } = req.query;
+  const users = await prisma.user.findMany({
+    where: {
+      isBlocked: false,
+      id: { not: req.user.id },
+      OR: [
+        { name: { contains: q, mode: 'insensitive' } },
+        { email: { contains: q, mode: 'insensitive' } }
+      ]
+    },
+    select: { id: true, name: true, email: true },
+    take: 10
+  });
+  res.json(users);
+});
+
 router.get('/', requireAdmin, async (req, res) => {
   const users = await prisma.user.findMany({
     select: { id: true, email: true, name: true, role: true, isBlocked: true, totpEnabled: true, createdAt: true },
