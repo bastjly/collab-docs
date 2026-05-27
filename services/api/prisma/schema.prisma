@@ -21,6 +21,7 @@ model User {
   createdDocuments  Document[]           @relation("CreatedBy")
   modifiedDocuments Document[]           @relation("LastModifiedBy")
   permissions       DocumentPermission[]
+  chatMessages      ChatMessage[]
 
   @@map("users")
 }
@@ -44,7 +45,8 @@ model Document {
   updatedAt        DateTime     @updatedAt
   deletedAt        DateTime?
 
-  permissions DocumentPermission[]
+  permissions  DocumentPermission[]
+  chatMessages ChatMessage[]
 
   @@index([deletedAt])
   @@map("documents")
@@ -58,6 +60,19 @@ model DocumentPermission {
 
   @@id([documentId, userId])
   @@map("document_permissions")
+}
+
+model ChatMessage {
+  id         String   @id @default(uuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  authorId   String
+  author     User     @relation(fields: [authorId], references: [id])
+  content    String
+  createdAt  DateTime @default(now())
+
+  @@index([documentId, createdAt])
+  @@map("chat_messages")
 }
 
 enum Role {
