@@ -25,11 +25,10 @@ function broadcast(documentId, message, exclude) {
 }
 
 function broadcastAll(message) {
-  wss.clients.forEach(client => {
-    if (client.readyState === 1) {
-      client.send(JSON.stringify(message));
-    }
-  });
+  const raw = JSON.stringify(message);
+  for (const client of wss.clients) {
+    if (client.readyState === 1) client.send(raw);
+  }
 }
 
 wss.on('connection', async (ws, req) => {
@@ -76,11 +75,9 @@ wss.on('connection', async (ws, req) => {
         broadcast(ws.documentId, { type: 'document_change', content: msg.content, userId: ws.user.id }, ws);
         break;
       }
-      case 'cursor': {
-        if (!ws.documentId) return;
-        broadcast(ws.documentId, { type: 'cursor', position: msg.position, userId: ws.user.id }, ws);
+      case 'cursor':
+        if (ws.documentId) broadcast(ws.documentId, { type: 'cursor', position: msg.position, userId: ws.user.id }, ws);
         break;
-      }
       case 'call_offer': {
         if (!ws.documentId) return;
         activeCalls.add(ws.documentId);
@@ -110,7 +107,7 @@ wss.on('connection', async (ws, req) => {
         broadcast(ws.documentId, { ...msg, userId: ws.user.id }, ws);
         break;
       }
-      case 'chat_message': {
+      case 'chat_message':
         if (!ws.documentId) return;
         broadcast(ws.documentId, {
           type: 'chat_message',
@@ -120,7 +117,6 @@ wss.on('connection', async (ws, req) => {
           author: { id: ws.user.id, name: ws.user.name || ws.user.email },
         }, ws);
         break;
-      }
     }
   });
 

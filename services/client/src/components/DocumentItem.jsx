@@ -112,17 +112,18 @@ export function DocumentItem({ doc, isCallActive, onOpen, onRefresh, token }) {
     e.dataTransfer.effectAllowed = 'move';
   }
 
+  function isDocDrag(e) {
+    return doc.type === 'FOLDER' && e.dataTransfer.types.includes('application/x-doc-id');
+  }
+
   function onDragOver(e) {
-    if (doc.type !== 'FOLDER') return;
-    if (!e.dataTransfer.types.includes('application/x-doc-id')) return;
+    if (!isDocDrag(e)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
   }
 
   function onDragEnter(e) {
-    if (doc.type !== 'FOLDER') return;
-    if (!e.dataTransfer.types.includes('application/x-doc-id')) return;
-    setIsDragOver(true);
+    if (isDocDrag(e)) setIsDragOver(true);
   }
 
   function onDragLeave() {

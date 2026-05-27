@@ -64,7 +64,6 @@ export function ProfilePage() {
       <main className="p-6 max-w-2xl mx-auto space-y-6">
         <h1 className="text-2xl font-semibold">Mon profil</h1>
 
-        {/* Infos */}
         <Card>
           <CardHeader><CardTitle>Informations</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
@@ -73,7 +72,6 @@ export function ProfilePage() {
           </CardContent>
         </Card>
 
-        {/* Modifier nom */}
         <Card>
           <CardHeader><CardTitle>Modifier le nom</CardTitle></CardHeader>
           <CardContent>
@@ -91,7 +89,6 @@ export function ProfilePage() {
           </CardContent>
         </Card>
 
-        {/* Changer mot de passe */}
         <Card>
           <CardHeader><CardTitle>Changer le mot de passe</CardTitle></CardHeader>
           <CardContent>

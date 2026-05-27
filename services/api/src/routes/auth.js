@@ -29,7 +29,8 @@ router.post('/login', async (req, res) => {
       { expiresIn: '7d' }
     );
     res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role } });
-  } catch {
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
