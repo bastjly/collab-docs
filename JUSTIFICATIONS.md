@@ -1,4 +1,4 @@
-# Document explicatif — Choix organisationnels, techniques et architecturaux
+# Document explicatif : Choix organisationnels, techniques et architecturaux
 
 ## Choix techniques
 
@@ -12,7 +12,7 @@ Pour la base de données, on a choisi **PostgreSQL**. C'est une base relationnel
 
 Pour les **communications en temps réel**, on a fait le choix d'utiliser l'API WebSocket native (`ws` côté serveur, WebSocket natif côté navigateur) sans passer par une bibliothèque comme Socket.IO. L'objectif était de comprendre le fonctionnement du protocole de zéro, sans surcouche abstraite. Ça nous a forcés à implémenter nous-mêmes la gestion des rooms, le broadcast et la reconnexion.
 
-Les **appels audio** sont implémentés avec **WebRTC**, l'API native du navigateur pour la communication peer-to-peer. Le serveur WebSocket sert de serveur de signaling : il relaie les offres SDP, les réponses et les candidats ICE entre les participants. On utilise un serveur **STUN public de Cloudflare** pour la résolution des adresses ICE. On n'a pas mis en place de serveur TURN — la traversée de NAT stricts n'est donc pas garantie — mais ça sort du scope de ce projet.
+Les **appels audio** sont implémentés avec **WebRTC**, l'API native du navigateur pour la communication peer-to-peer. Le serveur WebSocket sert de serveur de signaling : il relaie les offres SDP, les réponses et les candidats ICE entre les participants. On utilise un serveur **STUN public de Cloudflare** pour la résolution des adresses ICE. On n'a pas mis en place de serveur TURN, les appels peuvent donc échouer sur certains réseaux très restrictifs, mais c'était acceptable pour ce projet.
 
 ---
 
