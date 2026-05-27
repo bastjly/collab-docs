@@ -5,3 +5,5 @@ packages/api/uploads/
 *.log
 .DS_Store
 .idea/
+
+services/api/uploads/
