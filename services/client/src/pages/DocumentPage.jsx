@@ -7,8 +7,9 @@ import { CallBar } from '@/components/CallBar';
 import { CallIncomingModal } from '@/components/CallIncomingModal';
 import { InviteDialog } from '@/components/InviteDialog';
 import { RemoteCursorsOverlay } from '@/components/RemoteCursorsOverlay';
+import { ChatPanel } from '@/components/ChatPanel';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, UserPlus } from 'lucide-react';
+import { ArrowLeft, Download, MessageSquare, UserPlus } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -101,6 +102,8 @@ export function DocumentPage() {
     user.role === 'ADMIN' ||
     user.role === 'SUPERADMIN'
   ));
+  const [chatOpen, setChatOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const { send, on } = useWebSocket(token, documentId);
   const { callState, isMuted, startCall, endCall, joinCall, acceptCall, rejectCall, toggleMute, remoteAudioRef } = useWebRTC(send, on, documentId);
@@ -217,6 +220,19 @@ export function DocumentPage() {
               Inviter
             </Button>
           )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="relative"
+            onClick={() => { setChatOpen(o => !o); setUnreadCount(0); }}
+          >
+            <MessageSquare className="w-4 h-4" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </Button>
           <CallBar
             callState={callState}
             isMuted={isMuted}
@@ -230,31 +246,43 @@ export function DocumentPage() {
         </div>
       </header>
 
-      {document.type === 'FILE' ? (
-        <FileViewer document={document} token={token} />
-      ) : (
-        <main className="flex-1 flex flex-col p-6">
-          <div className="relative flex-1 flex flex-col">
-            <textarea
-              ref={textareaRef}
-              className="flex-1 w-full resize-none bg-transparent text-sm focus:outline-none font-mono"
-              placeholder="Commencez à écrire..."
-              value={content}
-              onChange={handleChange}
-              onSelect={sendCursor}
-              onKeyUp={sendCursor}
-              onClick={sendCursor}
-              onScroll={() => setScrollTick(t => t + 1)}
-            />
-            <RemoteCursorsOverlay
-              textareaRef={textareaRef}
-              value={content}
-              scrollTick={scrollTick}
-              cursors={cursors}
-            />
-          </div>
-        </main>
-      )}
+      <div className="flex flex-1 min-h-0">
+        {document.type === 'FILE' ? (
+          <FileViewer document={document} token={token} />
+        ) : (
+          <main className="flex-1 flex flex-col p-6 min-w-0">
+            <div className="relative flex-1 flex flex-col">
+              <textarea
+                ref={textareaRef}
+                className="flex-1 w-full resize-none bg-transparent text-sm focus:outline-none font-mono"
+                placeholder="Commencez à écrire..."
+                value={content}
+                onChange={handleChange}
+                onSelect={sendCursor}
+                onKeyUp={sendCursor}
+                onClick={sendCursor}
+                onScroll={() => setScrollTick(t => t + 1)}
+              />
+              <RemoteCursorsOverlay
+                textareaRef={textareaRef}
+                value={content}
+                scrollTick={scrollTick}
+                cursors={cursors}
+              />
+            </div>
+          </main>
+        )}
+        <ChatPanel
+          documentId={documentId}
+          token={token}
+          currentUserId={user?.id}
+          open={chatOpen}
+          onClose={() => setChatOpen(false)}
+          onUnread={() => setUnreadCount(c => c + 1)}
+          send={send}
+          on={on}
+        />
+      </div>
     </div>
   );
 }

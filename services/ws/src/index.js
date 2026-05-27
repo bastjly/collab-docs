@@ -84,6 +84,17 @@ function handleMessage(ws, data) {
       broadcast(ws.documentId, { ...msg, userId: ws.user.id }, ws);
       break;
     }
+    case 'chat_message': {
+      if (!ws.documentId) return;
+      broadcast(ws.documentId, {
+        type: 'chat_message',
+        id: msg.id,
+        content: msg.content,
+        createdAt: msg.createdAt,
+        author: { id: ws.user.id, name: ws.user.name || ws.user.email },
+      }, ws);
+      break;
+    }
   }
 }
 

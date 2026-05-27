@@ -187,4 +187,45 @@ router.delete('/:id/collaborators/:userId', async (req, res) => {
   res.json({ success: true });
 });
 
+async function canAccessDocument(documentId, userId) {
+  const doc = await prisma.document.findFirst({
+    where: { id: documentId, deletedAt: null },
+    include: { permissions: { where: { userId } } }
+  });
+  if (!doc) return false;
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+  return (
+    doc.createdById === userId ||
+    doc.permissions.length > 0 ||
+    user?.role === 'ADMIN' ||
+    user?.role === 'SUPERADMIN'
+  );
+}
+
+router.get('/:id/messages', async (req, res) => {
+  const hasAccess = await canAccessDocument(req.params.id, req.user.id);
+  if (!hasAccess) return res.status(403).json({ error: 'Accès refusé' });
+
+  const messages = await prisma.chatMessage.findMany({
+    where: { documentId: req.params.id },
+    include: { author: { select: { id: true, name: true } } },
+    orderBy: { createdAt: 'asc' },
+  });
+  res.json(messages);
+});
+
+router.post('/:id/messages', async (req, res) => {
+  const { content } = req.body;
+  if (!content?.trim()) return res.status(400).json({ error: 'Message vide' });
+
+  const hasAccess = await canAccessDocument(req.params.id, req.user.id);
+  if (!hasAccess) return res.status(403).json({ error: 'Accès refusé' });
+
+  const message = await prisma.chatMessage.create({
+    data: { documentId: req.params.id, authorId: req.user.id, content: content.trim() },
+    include: { author: { select: { id: true, name: true } } },
+  });
+  res.status(201).json(message);
+});
+
 export default router;
