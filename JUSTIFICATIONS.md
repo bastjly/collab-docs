@@ -27,7 +27,27 @@ Ce découplage entre l'API et le serveur WebSocket a une importance particulièr
 
 La communication entre les services côté client est directe : le navigateur parle à l'API via HTTP et au serveur WS via WebSocket. Il n'y a pas de communication serveur-à-serveur : si une action côté API doit notifier des clients en temps réel, c'est le client qui, après avoir reçu la réponse HTTP, envoie un message au WS pour broadcaster. Ce choix simplifie l'architecture en évitant un bus de messages sur plusieurs services.
 
-La base de données est accessible uniquement depuis l'API. Le serveur WebSocket ne fait aucune requête SQL, ce qui le maintient léger et concentré sur son rôle de relai de messages.
+La base de données est accessible uniquement depuis l'API. Le serveur WebSocket ne fait aucune requête SQL : pour authentifier une connexion entrante, il délègue la vérification du token à l'API via un appel HTTP interne protégé par un secret partagé (`WS_INTERNAL_SECRET`). Ce découplage maintient le service WS léger et concentré sur son rôle de relai de messages.
+
+### Pourquoi ce choix plutôt que les alternatives
+
+Deux autres approches étaient envisageables.
+
+**Connecter le service WS directement à la base de données.** C'est la solution la plus simple à mettre en place, mais elle contredit le principe d'architecture qu'on s'est fixé : la base de données est le domaine exclusif de l'API. Si le WS accède aussi à Postgres, on se retrouve avec deux services qui partagent le même schéma, les mêmes credentials et les mêmes règles de validation. En production, ça veut dire deux connection pools à gérer, deux services à mettre à jour à chaque migration, et une surface d'attaque plus large si l'un des deux services est compromis.
+
+**Faire notifier le service WS par l'API lors d'un bannissement.** L'idée serait que quand un admin bloque un utilisateur, l'API envoie un message au WS pour qu'il ferme la connexion active immédiatement. C'est séduisant parce que ça permet une révocation en temps réel sans attendre la prochaine connexion. Le problème c'est qu'on introduit une **dépendance bidirectionnelle** : l'API doit maintenant savoir que le WS existe et comment le joindre. En production avec plusieurs instances WS (scalabilité horizontale), l'API devrait notifier toutes les instances, ce qui nécessite un bus de messages (Redis pub/sub, par exemple). Cette approche est pertinente pour des systèmes qui exigent une révocation instantanée, mais pour notre cas d'usage, le délai acceptable est celui de la durée de vie du JWT.
+
+**L'appel HTTP interne au moment de la connexion** est le bon compromis : la vérification est fraîche (données en temps réel depuis la DB), la logique d'authentification reste dans un seul service (l'API), et le WS ne connaît pas la base de données. En production, cet endpoint est protégé à deux niveaux : le secret partagé dans le header `X-Internal-Secret`, et l'isolation réseau (l'endpoint `/api/internal` n'est joignable que depuis le réseau privé entre les deux serveurs, pas depuis internet). La latence de cet appel est négligeable car il n'a lieu qu'à l'établissement de la connexion WebSocket, pas à chaque message.
+
+---
+
+## Choix organisationnels
+
+Le projet a été découpé en grandes fonctionnalités qui ont été développées de manière itérative. On a commencé par le socle commun : authentification, gestion des documents et arborescence de fichiers. Une fois cette base stable, on a ajouté les fonctionnalités temps réel (édition collaborative, appels audio) puis les fonctionnalités avancées (2FA, gestion des permissions, chat).
+
+On a utilisé **Git** avec des branches par fonctionnalité et des pull requests pour la revue de code. Ça nous a permis de travailler en parallèle sans trop se bloquer mutuellement.
+
+La gestion des tâches s'est faite de façon informelle au début, puis on a adopté un tableau simple pour suivre ce qui était en cours et ce qui restait à faire. Les décisions techniques importantes (choix des bibliothèques, découpage des services) ont été prises collectivement.
 
 ---
 
@@ -51,13 +71,3 @@ Côté documents, les admins et superadmins voient tous les documents de la plat
 On a utilisé **SonarQube** pour faire une analyse SAST du projet. L'idée était de scanner le code à la recherche de failles potentielles sans avoir à les trouver manuellement.
 
 L'analyse a mis en évidence quelques points qu'on a corrigés dans la foulée. Ça nous a permis d'avoir un regard extérieur sur la qualité et la sécurité du code, au-delà de ce qu'on aurait pu repérer nous-mêmes lors des revues de PR.
-
----
-
-## Choix organisationnels
-
-Le projet a été découpé en grandes fonctionnalités qui ont été développées de manière itérative. On a commencé par le socle commun : authentification, gestion des documents et arborescence de fichiers. Une fois cette base stable, on a ajouté les fonctionnalités temps réel (édition collaborative, appels audio) puis les fonctionnalités avancées (2FA, gestion des permissions, chat).
-
-On a utilisé **Git** avec des branches par fonctionnalité et des pull requests pour la revue de code. Ça nous a permis de travailler en parallèle sans trop se bloquer mutuellement.
-
-La gestion des tâches s'est faite de façon informelle au début, puis on a adopté un tableau simple pour suivre ce qui était en cours et ce qui restait à faire. Les décisions techniques importantes (choix des bibliothèques, découpage des services) ont été prises collectivement.
