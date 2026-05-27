@@ -20,6 +20,16 @@ function accessFilter(user) {
     ]
   };
 }
+function isOwnerOrAdmin(doc, user) {
+  return doc.createdById === user.id || user.role === 'ADMIN' || user.role === 'SUPERADMIN';
+}
+
+function findAccessibleDoc(id, user, select) {
+  return prisma.document.findFirst({
+    where: { id, deletedAt: null, ...accessFilter(user) },
+    ...(select ? { select } : {})
+  });
+}
 
 router.get('/', async (req, res) => {
   const { parent_id } = req.query;
@@ -36,6 +46,10 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   const { name, type, parent_id } = req.body;
+  if (parent_id) {
+    const parent = await findAccessibleDoc(parent_id, req.user, { id: true });
+    if (!parent) return res.status(403).json({ error: 'Dossier parent inaccessible' });
+  }
   const doc = await prisma.document.create({
     data: { name, type, parentId: parent_id ?? null, createdById: req.user.id, lastModifiedById: req.user.id }
   });
@@ -52,7 +66,7 @@ router.get('/folders', async (req, res) => {
 });
 
 router.get('/:id', async (req, res) => {
-  const doc = await prisma.document.findFirst({ where: { id: req.params.id, deletedAt: null, ...accessFilter(req.user) } });
+  const doc = await findAccessibleDoc(req.params.id, req.user);
   if (!doc) return res.status(404).json({ error: 'Document introuvable' });
   res.json(doc);
 });
@@ -62,8 +76,11 @@ router.get('/:id/ancestors', async (req, res) => {
   let currentId = req.params.id;
   let first = true;
   while (currentId) {
+    const where = first
+      ? { id: currentId, deletedAt: null, ...accessFilter(req.user) }
+      : { id: currentId, deletedAt: null };
     const doc = await prisma.document.findFirst({
-      where: { id: currentId, deletedAt: null },
+      where,
       select: { id: true, name: true, parentId: true }
     });
     if (!doc) {
@@ -78,6 +95,9 @@ router.get('/:id/ancestors', async (req, res) => {
 });
 
 router.patch('/:id', async (req, res) => {
+  const target = await findAccessibleDoc(req.params.id, req.user, { id: true });
+  if (!target) return res.status(404).json({ error: 'Document introuvable' });
+
   const { content, name, parent_id } = req.body;
   const data = { lastModifiedById: req.user.id };
   if (content !== undefined) data.content = content;
@@ -88,6 +108,8 @@ router.patch('/:id', async (req, res) => {
       return res.status(400).json({ error: 'Déplacement invalide' });
     }
     if (parent_id !== null) {
+      const targetParent = await findAccessibleDoc(parent_id, req.user, { id: true });
+      if (!targetParent) return res.status(400).json({ error: 'Dossier cible introuvable' });
       let cursor = parent_id;
       while (cursor) {
         if (cursor === req.params.id) {
@@ -111,6 +133,12 @@ router.patch('/:id', async (req, res) => {
 });
 
 router.delete('/:id', async (req, res) => {
+  const doc = await prisma.document.findFirst({
+    where: { id: req.params.id, deletedAt: null },
+    select: { createdById: true }
+  });
+  if (!doc) return res.status(404).json({ error: 'Document introuvable' });
+  if (!isOwnerOrAdmin(doc, req.user)) return res.status(403).json({ error: 'Accès refusé' });
   await prisma.document.update({
     where: { id: req.params.id },
     data: { deletedAt: new Date() }
@@ -119,8 +147,12 @@ router.delete('/:id', async (req, res) => {
 });
 
 router.post('/:id/restore', async (req, res) => {
-  const doc = await prisma.document.findUnique({ where: { id: req.params.id } });
+  const doc = await prisma.document.findUnique({
+    where: { id: req.params.id },
+    select: { createdById: true }
+  });
   if (!doc) return res.status(404).json({ error: 'Document introuvable' });
+  if (!isOwnerOrAdmin(doc, req.user)) return res.status(403).json({ error: 'Accès refusé' });
   await prisma.document.update({
     where: { id: req.params.id },
     data: { deletedAt: null }
@@ -129,6 +161,8 @@ router.post('/:id/restore', async (req, res) => {
 });
 
 router.post('/:id/upload', upload.single('file'), async (req, res) => {
+  const target = await findAccessibleDoc(req.params.id, req.user, { id: true });
+  if (!target) return res.status(404).json({ error: 'Document introuvable' });
   const { originalname, filename, mimetype } = req.file;
   await prisma.document.update({
     where: { id: req.params.id },
@@ -138,13 +172,13 @@ router.post('/:id/upload', upload.single('file'), async (req, res) => {
 });
 
 router.get('/:id/download', async (req, res) => {
-  const doc = await prisma.document.findFirst({ where: { id: req.params.id, deletedAt: null } });
+  const doc = await findAccessibleDoc(req.params.id, req.user);
   if (!doc?.filePath) return res.status(404).json({ error: 'Aucun fichier' });
   res.download(path.join(__dirname, '../../uploads', doc.filePath), doc.fileName);
 });
 
 router.get('/:id/collaborators', async (req, res) => {
-  const doc = await prisma.document.findFirst({ where: { id: req.params.id, deletedAt: null }, select: { id: true } });
+  const doc = await findAccessibleDoc(req.params.id, req.user, { id: true });
   if (!doc) return res.status(404).json({ error: 'Document introuvable' });
   const perms = await prisma.documentPermission.findMany({
     where: { documentId: req.params.id },
@@ -157,9 +191,10 @@ router.post('/:id/invite', async (req, res) => {
   const { user_id } = req.body;
   const doc = await prisma.document.findFirst({ where: { id: req.params.id, deletedAt: null }, select: { createdById: true, parentId: true } });
   if (!doc) return res.status(404).json({ error: 'Document introuvable' });
-  const isOwner = doc.createdById === req.user.id;
-  const isAdmin = req.user.role === 'ADMIN' || req.user.role === 'SUPERADMIN';
-  if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Accès refusé' });
+  if (!isOwnerOrAdmin(doc, req.user)) return res.status(403).json({ error: 'Accès refusé' });
+
+  const invitee = await prisma.user.findUnique({ where: { id: user_id }, select: { id: true } });
+  if (!invitee) return res.status(404).json({ error: 'Utilisateur introuvable' });
 
   const idsToGrant = [req.params.id];
   let parentId = doc.parentId;
@@ -180,9 +215,7 @@ router.post('/:id/invite', async (req, res) => {
 router.delete('/:id/collaborators/:userId', async (req, res) => {
   const doc = await prisma.document.findFirst({ where: { id: req.params.id, deletedAt: null }, select: { createdById: true } });
   if (!doc) return res.status(404).json({ error: 'Document introuvable' });
-  const isOwner = doc.createdById === req.user.id;
-  const isAdmin = req.user.role === 'ADMIN' || req.user.role === 'SUPERADMIN';
-  if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Accès refusé' });
+  if (!isOwnerOrAdmin(doc, req.user)) return res.status(403).json({ error: 'Accès refusé' });
   await prisma.documentPermission.deleteMany({
     where: { documentId: req.params.id, userId: req.params.userId }
   });
@@ -190,9 +223,7 @@ router.delete('/:id/collaborators/:userId', async (req, res) => {
 });
 
 router.get('/:id/messages', async (req, res) => {
-  const doc = await prisma.document.findFirst({
-    where: { id: req.params.id, deletedAt: null, ...accessFilter(req.user) }
-  });
+  const doc = await findAccessibleDoc(req.params.id, req.user);
   if (!doc) return res.status(403).json({ error: 'Accès refusé' });
 
   const messages = await prisma.chatMessage.findMany({
@@ -207,9 +238,7 @@ router.post('/:id/messages', async (req, res) => {
   const { content } = req.body;
   if (!content?.trim()) return res.status(400).json({ error: 'Message vide' });
 
-  const doc = await prisma.document.findFirst({
-    where: { id: req.params.id, deletedAt: null, ...accessFilter(req.user) }
-  });
+  const doc = await findAccessibleDoc(req.params.id, req.user);
   if (!doc) return res.status(403).json({ error: 'Accès refusé' });
 
   const message = await prisma.chatMessage.create({
