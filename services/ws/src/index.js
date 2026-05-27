@@ -25,11 +25,10 @@ function broadcast(documentId, message, exclude) {
 }
 
 function broadcastAll(message) {
-  wss.clients.forEach(client => {
-    if (client.readyState === 1) {
-      client.send(JSON.stringify(message));
-    }
-  });
+  const raw = JSON.stringify(message);
+  for (const client of wss.clients) {
+    if (client.readyState === 1) client.send(raw);
+  }
 }
 
 function handleMessage(ws, data) {

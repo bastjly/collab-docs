@@ -12,7 +12,6 @@ export function useWebRTC(send, on, documentId) {
   const pendingOffer = useRef(null);
   const remoteAudioRef = useRef(null);
   const prevCallState = useRef('idle');
-  // ref pour lire callState dans les closures de handlers sans les re-enregistrer
   const callStateRef = useRef('idle');
 
   const { playRing, stopRing, playHangup } = useCallSounds();
@@ -32,14 +31,13 @@ export function useWebRTC(send, on, documentId) {
   }, [callState, playRing, stopRing, playHangup]);
 
   const cleanup = useCallback(() => {
-    pc.current?.close();
-    pc.current = null;
+    if (pc.current) { pc.current.close(); pc.current = null; }
     localStream.current?.getTracks().forEach(t => t.stop());
     localStream.current = null;
     pendingOffer.current = null;
-    setCallState('idle');
-    setIsMuted(false);
     setCaller(null);
+    setIsMuted(false);
+    setCallState('idle');
   }, []);
 
   const createPeerConnection = useCallback(() => {
@@ -113,11 +111,9 @@ export function useWebRTC(send, on, documentId) {
 
   const reOffer = useCallback(async () => {
     if (!localStream.current) return;
-    const old = pc.current;
-    if (old) {
-      // nullifier le handler avant close() pour éviter de déclencher cleanup()
-      old.onconnectionstatechange = null;
-      old.close();
+    if (pc.current) {
+      pc.current.onconnectionstatechange = null;
+      pc.current.close();
     }
     pc.current = createPeerConnection();
     localStream.current.getTracks().forEach(t => pc.current.addTrack(t, localStream.current));
@@ -160,11 +156,9 @@ export function useWebRTC(send, on, documentId) {
   }, [on]);
 
   useEffect(() => {
-    return on('call_end', cleanup);
-  }, [on, cleanup]);
-
-  useEffect(() => {
-    return on('call_rejected', cleanup);
+    const unsubEnd = on('call_end', cleanup);
+    const unsubRejected = on('call_rejected', cleanup);
+    return () => { unsubEnd(); unsubRejected(); };
   }, [on, cleanup]);
 
   useEffect(() => {

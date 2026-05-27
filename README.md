@@ -4,9 +4,9 @@ Application collaborative d'édition de documents en temps réel.
 
 ## Stack
 
-- **API** (`services/api`) — Express, Prisma, PostgreSQL, JWT, otplib (2FA)
-- **WS** (`services/ws`) — WebSocket (édition temps réel) + signaling WebRTC (appels audio)
-- **Client** (`services/client`) — React + Vite + Tailwind CSS + shadcn/ui
+- **API** (`services/api`) Express, Prisma, PostgreSQL, JWT, otplib (2FA)
+- **WS** (`services/ws`) WebSocket (édition temps réel) + signaling WebRTC (appels audio)
+- **Client** (`services/client`) React + Vite + Tailwind CSS + shadcn/ui
 
 ---
 
@@ -23,12 +23,7 @@ Application collaborative d'édition de documents en temps réel.
 cp .env.example .env
 ```
 
-Renseigner toutes les valeurs dans `.env`. Aucune valeur par défaut n'est fournie pour les secrets.
-
-> **Important** : `DATABASE_URL` doit pointer sur `localhost` (et non `postgres`) puisque l'API tourne en local.
-> ```
-> DATABASE_URL=postgres://user:password@localhost:5432/collab_docs
-> ```
+Renseigner toutes les valeurs dans `.env`.
 
 ### 2. Installer les dépendances
 
@@ -60,16 +55,6 @@ npm run dev
 
 ---
 
-## Utilisation quotidienne
-
-```bash
-npm run dev
-```
-
-Pour ajouter une dépendance : `npm install <lib> -w @collab-docs/<service>` depuis la racine. Pas besoin de rebuild Docker.
-
----
-
 ## Commandes Prisma utiles
 
 ```bash
@@ -91,3 +76,7 @@ npm run db:studio -w @collab-docs/api
 docker compose down -v
 npm run seed
 ```
+
+---
+
+> Le document explicatif (choix techniques, architecturaux et organisationnels) est disponible dans [`JUSTIFICATIONS.md`](./JUSTIFICATIONS.md).

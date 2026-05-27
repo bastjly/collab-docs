@@ -60,17 +60,19 @@ router.get('/:id', async (req, res) => {
 router.get('/:id/ancestors', async (req, res) => {
   const ancestors = [];
   let currentId = req.params.id;
-  for (let depth = 0; depth < 50 && currentId; depth++) {
+  let first = true;
+  while (currentId) {
     const doc = await prisma.document.findFirst({
       where: { id: currentId, deletedAt: null },
       select: { id: true, name: true, parentId: true }
     });
     if (!doc) {
-      if (depth === 0) return res.status(404).json({ error: 'Document introuvable' });
+      if (first) return res.status(404).json({ error: 'Document introuvable' });
       break;
     }
     ancestors.unshift({ id: doc.id, name: doc.name });
     currentId = doc.parentId;
+    first = false;
   }
   res.json(ancestors);
 });
@@ -87,7 +89,7 @@ router.patch('/:id', async (req, res) => {
     }
     if (parent_id !== null) {
       let cursor = parent_id;
-      for (let depth = 0; depth < 50 && cursor; depth++) {
+      while (cursor) {
         if (cursor === req.params.id) {
           return res.status(400).json({ error: 'Déplacement invalide' });
         }
@@ -161,7 +163,7 @@ router.post('/:id/invite', async (req, res) => {
 
   const idsToGrant = [req.params.id];
   let parentId = doc.parentId;
-  for (let depth = 0; depth < 50 && parentId; depth++) {
+  while (parentId) {
     const parent = await prisma.document.findFirst({ where: { id: parentId, deletedAt: null }, select: { parentId: true } });
     if (!parent) break;
     idsToGrant.push(parentId);
@@ -187,24 +189,11 @@ router.delete('/:id/collaborators/:userId', async (req, res) => {
   res.json({ success: true });
 });
 
-async function canAccessDocument(documentId, userId) {
-  const doc = await prisma.document.findFirst({
-    where: { id: documentId, deletedAt: null },
-    include: { permissions: { where: { userId } } }
-  });
-  if (!doc) return false;
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
-  return (
-    doc.createdById === userId ||
-    doc.permissions.length > 0 ||
-    user?.role === 'ADMIN' ||
-    user?.role === 'SUPERADMIN'
-  );
-}
-
 router.get('/:id/messages', async (req, res) => {
-  const hasAccess = await canAccessDocument(req.params.id, req.user.id);
-  if (!hasAccess) return res.status(403).json({ error: 'Accès refusé' });
+  const doc = await prisma.document.findFirst({
+    where: { id: req.params.id, deletedAt: null, ...accessFilter(req.user) }
+  });
+  if (!doc) return res.status(403).json({ error: 'Accès refusé' });
 
   const messages = await prisma.chatMessage.findMany({
     where: { documentId: req.params.id },
@@ -218,8 +207,10 @@ router.post('/:id/messages', async (req, res) => {
   const { content } = req.body;
   if (!content?.trim()) return res.status(400).json({ error: 'Message vide' });
 
-  const hasAccess = await canAccessDocument(req.params.id, req.user.id);
-  if (!hasAccess) return res.status(403).json({ error: 'Accès refusé' });
+  const doc = await prisma.document.findFirst({
+    where: { id: req.params.id, deletedAt: null, ...accessFilter(req.user) }
+  });
+  if (!doc) return res.status(403).json({ error: 'Accès refusé' });
 
   const message = await prisma.chatMessage.create({
     data: { documentId: req.params.id, authorId: req.user.id, content: content.trim() },
