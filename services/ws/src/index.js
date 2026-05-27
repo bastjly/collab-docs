@@ -32,6 +32,61 @@ function broadcastAll(message) {
   });
 }
 
+function handleMessage(ws, data) {
+  let msg;
+  try { msg = JSON.parse(data); } catch { return; }
+
+  switch (msg.type) {
+    case 'join': {
+      if (ws.documentId) rooms.get(ws.documentId)?.delete(ws);
+      ws.documentId = msg.documentId;
+      if (!rooms.has(msg.documentId)) rooms.set(msg.documentId, new Set());
+      rooms.get(msg.documentId).add(ws);
+      broadcast(msg.documentId, { type: 'user_joined', user: { id: ws.user.id, name: ws.user.email } }, ws);
+      break;
+    }
+    case 'document_change': {
+      if (!ws.documentId) return;
+      broadcast(ws.documentId, { type: 'document_change', content: msg.content, userId: ws.user.id }, ws);
+      break;
+    }
+    case 'cursor': {
+      if (!ws.documentId) return;
+      broadcast(ws.documentId, { type: 'cursor', position: msg.position, name: msg.name, userId: ws.user.id }, ws);
+      break;
+    }
+    case 'call_offer': {
+      if (!ws.documentId) return;
+      activeCalls.add(ws.documentId);
+      broadcastAll({ type: 'call_started', documentId: ws.documentId });
+      broadcast(ws.documentId, { ...msg, userId: ws.user.id }, ws);
+      break;
+    }
+    case 'call_end': {
+      if (!ws.documentId) return;
+      activeCalls.delete(ws.documentId);
+      broadcastAll({ type: 'call_ended', documentId: ws.documentId });
+      broadcast(ws.documentId, { ...msg, userId: ws.user.id }, ws);
+      break;
+    }
+    case 'call_rejected': {
+      if (!ws.documentId) return;
+      if (activeCalls.delete(ws.documentId)) {
+        broadcastAll({ type: 'call_ended', documentId: ws.documentId });
+      }
+      broadcast(ws.documentId, { ...msg, userId: ws.user.id }, ws);
+      break;
+    }
+    case 'call_join_request':
+    case 'call_answer':
+    case 'call_ice': {
+      if (!ws.documentId) return;
+      broadcast(ws.documentId, { ...msg, userId: ws.user.id }, ws);
+      break;
+    }
+  }
+}
+
 wss.on('connection', async (ws, req) => {
   const token = new URL(req.url, 'ws://localhost').searchParams.get('token');
   let payload;
@@ -42,75 +97,17 @@ wss.on('connection', async (ws, req) => {
     return;
   }
 
-  const dbUser = await prisma.user.findUnique({
-    where: { id: payload.id },
-    select: { id: true, email: true, role: true, isBlocked: true }
-  });
-
-  if (!dbUser || dbUser.isBlocked) {
-    ws.close(1008, 'Forbidden');
-    return;
-  }
-
-  ws.user = dbUser;
-
   ws.documentId = null;
 
-  ws.send(JSON.stringify({ type: 'active_calls', documentIds: [...activeCalls] }));
-
+  // L'écouteur est attaché immédiatement (avant l'await DB) pour ne pas perdre
+  // les premiers messages — notamment le 'join' que le client envoie dès l'ouverture.
+  // Les messages reçus avant la fin de la vérification en base sont mis en file,
+  // puis rejoués une fois la connexion prête.
+  let ready = false;
+  const pending = [];
   ws.on('message', (data) => {
-    let msg;
-    try { msg = JSON.parse(data); } catch { return; }
-
-    switch (msg.type) {
-      case 'join': {
-        if (ws.documentId) rooms.get(ws.documentId)?.delete(ws);
-        ws.documentId = msg.documentId;
-        if (!rooms.has(msg.documentId)) rooms.set(msg.documentId, new Set());
-        rooms.get(msg.documentId).add(ws);
-        broadcast(msg.documentId, { type: 'user_joined', user: { id: ws.user.id, name: ws.user.email } }, ws);
-        break;
-      }
-      case 'document_change': {
-        if (!ws.documentId) return;
-        broadcast(ws.documentId, { type: 'document_change', content: msg.content, userId: ws.user.id }, ws);
-        break;
-      }
-      case 'cursor': {
-        if (!ws.documentId) return;
-        broadcast(ws.documentId, { type: 'cursor', position: msg.position, userId: ws.user.id }, ws);
-        break;
-      }
-      case 'call_offer': {
-        if (!ws.documentId) return;
-        activeCalls.add(ws.documentId);
-        broadcastAll({ type: 'call_started', documentId: ws.documentId });
-        broadcast(ws.documentId, { ...msg, userId: ws.user.id }, ws);
-        break;
-      }
-      case 'call_end': {
-        if (!ws.documentId) return;
-        activeCalls.delete(ws.documentId);
-        broadcastAll({ type: 'call_ended', documentId: ws.documentId });
-        broadcast(ws.documentId, { ...msg, userId: ws.user.id }, ws);
-        break;
-      }
-      case 'call_rejected': {
-        if (!ws.documentId) return;
-        if (activeCalls.delete(ws.documentId)) {
-          broadcastAll({ type: 'call_ended', documentId: ws.documentId });
-        }
-        broadcast(ws.documentId, { ...msg, userId: ws.user.id }, ws);
-        break;
-      }
-      case 'call_join_request':
-      case 'call_answer':
-      case 'call_ice': {
-        if (!ws.documentId) return;
-        broadcast(ws.documentId, { ...msg, userId: ws.user.id }, ws);
-        break;
-      }
-    }
+    if (!ready) { pending.push(data); return; }
+    handleMessage(ws, data);
   });
 
   ws.on('close', () => {
@@ -124,6 +121,23 @@ wss.on('connection', async (ws, req) => {
       }
     }
   });
+
+  const dbUser = await prisma.user.findUnique({
+    where: { id: payload.id },
+    select: { id: true, email: true, role: true, isBlocked: true }
+  });
+
+  if (!dbUser || dbUser.isBlocked) {
+    ws.close(1008, 'Forbidden');
+    return;
+  }
+
+  ws.user = dbUser;
+
+  ws.send(JSON.stringify({ type: 'active_calls', documentIds: [...activeCalls] }));
+
+  ready = true;
+  for (const data of pending) handleMessage(ws, data);
 });
 
 server.listen(PORT, () => console.log(`WS server on port ${PORT}`));

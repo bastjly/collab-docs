@@ -6,6 +6,7 @@ import { useWebRTC } from '@/hooks/useWebRTC';
 import { CallBar } from '@/components/CallBar';
 import { CallIncomingModal } from '@/components/CallIncomingModal';
 import { InviteDialog } from '@/components/InviteDialog';
+import { RemoteCursorsOverlay } from '@/components/RemoteCursorsOverlay';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, UserPlus } from 'lucide-react';
 
@@ -88,6 +89,10 @@ export function DocumentPage() {
   const [document, setDocument] = useState(null);
   const [content, setContent] = useState('');
   const saveTimeout = useRef(null);
+  const textareaRef = useRef(null);
+  const cursorThrottle = useRef(0);
+  const [cursors, setCursors] = useState({});
+  const [scrollTick, setScrollTick] = useState(0);
 
   const [isCallActive, setIsCallActive] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -134,6 +139,35 @@ export function DocumentPage() {
       setContent(newContent);
     });
   }, [on]);
+
+  useEffect(() => {
+    return on('cursor', ({ userId, position, name }) => {
+      setCursors(prev => ({ ...prev, [userId]: { position, name } }));
+    });
+  }, [on]);
+
+  useEffect(() => {
+    return on('user_left', ({ userId }) => {
+      setCursors(prev => {
+        const next = { ...prev };
+        delete next[userId];
+        return next;
+      });
+    });
+  }, [on]);
+
+  useEffect(() => {
+    const onResize = () => setScrollTick(t => t + 1);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  function sendCursor(e) {
+    const now = Date.now();
+    if (now - cursorThrottle.current < 80) return;
+    cursorThrottle.current = now;
+    send({ type: 'cursor', position: e.target.selectionStart, name: user?.name });
+  }
 
   function handleChange(e) {
     const newContent = e.target.value;
@@ -200,12 +234,25 @@ export function DocumentPage() {
         <FileViewer document={document} token={token} />
       ) : (
         <main className="flex-1 flex flex-col p-6">
-          <textarea
-            className="flex-1 w-full resize-none bg-transparent text-sm focus:outline-none font-mono"
-            placeholder="Commencez à écrire..."
-            value={content}
-            onChange={handleChange}
-          />
+          <div className="relative flex-1 flex flex-col">
+            <textarea
+              ref={textareaRef}
+              className="flex-1 w-full resize-none bg-transparent text-sm focus:outline-none font-mono"
+              placeholder="Commencez à écrire..."
+              value={content}
+              onChange={handleChange}
+              onSelect={sendCursor}
+              onKeyUp={sendCursor}
+              onClick={sendCursor}
+              onScroll={() => setScrollTick(t => t + 1)}
+            />
+            <RemoteCursorsOverlay
+              textareaRef={textareaRef}
+              value={content}
+              scrollTick={scrollTick}
+              cursors={cursors}
+            />
+          </div>
         </main>
       )}
     </div>
