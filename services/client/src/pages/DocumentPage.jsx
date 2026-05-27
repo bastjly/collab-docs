@@ -95,7 +95,8 @@ export function DocumentPage() {
   const [cursors, setCursors] = useState({});
   const [scrollTick, setScrollTick] = useState(0);
 
-  const [isCallActive, setIsCallActive] = useState(false);
+  const [collaborators, setCollaborators] = useState([]);
+  const [onlineUserIds, setOnlineUserIds] = useState(new Set());
   const [inviteOpen, setInviteOpen] = useState(false);
   const canInvite = !!(document && user && (
     document.createdById === user.id ||
@@ -106,7 +107,7 @@ export function DocumentPage() {
   const [unreadCount, setUnreadCount] = useState(0);
 
   const { send, on } = useWebSocket(token, documentId);
-  const { callState, isMuted, startCall, endCall, joinCall, acceptCall, rejectCall, toggleMute, remoteAudioRef } = useWebRTC(send, on, documentId);
+  const { callState, isMuted, callerId, startCall, endCall, acceptCall, rejectCall, toggleMute, remoteAudioRef } = useWebRTC(send, on, documentId);
 
   useEffect(() => {
     fetch(`${API}/api/documents/${documentId}`, {
@@ -120,22 +121,35 @@ export function DocumentPage() {
   }, [documentId, token]);
 
   useEffect(() => {
-    return on('active_calls', ({ documentIds }) => {
-      setIsCallActive(documentIds.includes(documentId));
-    });
-  }, [on, documentId]);
+    fetch(`${API}/api/documents/${documentId}/collaborators`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then(users => setCollaborators(users));
+  }, [documentId, token]);
 
   useEffect(() => {
-    return on('call_started', ({ documentId: id }) => {
-      if (id === documentId) setIsCallActive(true);
+    return on('room_users', ({ users }) => {
+      setOnlineUserIds(new Set(users.map(u => u.id)));
     });
-  }, [on, documentId]);
+  }, [on]);
 
   useEffect(() => {
-    return on('call_ended', ({ documentId: id }) => {
-      if (id === documentId) setIsCallActive(false);
+    return on('user_joined', ({ user: joined }) => {
+      setOnlineUserIds(prev => new Set([...prev, joined.id]));
     });
-  }, [on, documentId]);
+  }, [on]);
+
+  useEffect(() => {
+    return on('user_left', ({ userId }) => {
+      setOnlineUserIds(prev => { const next = new Set(prev); next.delete(userId); return next; });
+      setCursors(prev => {
+        const next = { ...prev };
+        delete next[userId];
+        return next;
+      });
+    });
+  }, [on]);
 
   useEffect(() => {
     return on('document_change', ({ content: newContent }) => {
@@ -146,16 +160,6 @@ export function DocumentPage() {
   useEffect(() => {
     return on('cursor', ({ userId, position, name }) => {
       setCursors(prev => ({ ...prev, [userId]: { position, name } }));
-    });
-  }, [on]);
-
-  useEffect(() => {
-    return on('user_left', ({ userId }) => {
-      setCursors(prev => {
-        const next = { ...prev };
-        delete next[userId];
-        return next;
-      });
     });
   }, [on]);
 
@@ -193,10 +197,15 @@ export function DocumentPage() {
 
   if (!document) return <div className="p-6 text-muted-foreground">Chargement...</div>;
 
+  const callableUsers = collaborators
+    .filter(c => c.id !== user?.id)
+    .map(c => ({ ...c, isOnline: onlineUserIds.has(c.id) }));
+
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <CallIncomingModal
         open={callState === 'incoming'}
+        callerName={collaborators.find(u => u.id === callerId)?.name ?? 'Collaborateur'}
         onAccept={acceptCall}
         onReject={rejectCall}
       />
@@ -236,9 +245,8 @@ export function DocumentPage() {
           <CallBar
             callState={callState}
             isMuted={isMuted}
-            isCallActive={isCallActive}
+            collaborators={callableUsers}
             onCall={startCall}
-            onJoin={joinCall}
             onHangUp={endCall}
             onToggleMute={toggleMute}
             remoteAudioRef={remoteAudioRef}

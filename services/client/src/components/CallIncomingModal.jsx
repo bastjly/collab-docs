@@ -1,7 +1,7 @@
 import { Phone, PhoneOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-export function CallIncomingModal({ open, onAccept, onReject }) {
+export function CallIncomingModal({ open, callerName, onAccept, onReject }) {
   if (!open) return null;
 
   return (
@@ -12,7 +12,7 @@ export function CallIncomingModal({ open, onAccept, onReject }) {
         </div>
         <div className="text-center">
           <p className="font-semibold text-lg">Appel entrant</p>
-          <p className="text-sm text-muted-foreground mt-1">Un collaborateur vous appelle</p>
+          <p className="text-sm text-muted-foreground mt-1">{callerName} vous appelle</p>
         </div>
         <div className="flex gap-4">
           <Button variant="destructive" size="lg" onClick={onReject} className="rounded-full w-14 h-14 p-0">

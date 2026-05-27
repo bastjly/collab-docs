@@ -5,7 +5,12 @@ export function handleJoin(ws, msg) {
   if (ws.documentId) rooms.get(ws.documentId)?.delete(ws);
   ws.documentId = msg.documentId;
   if (!rooms.has(msg.documentId)) rooms.set(msg.documentId, new Set());
-  rooms.get(msg.documentId).add(ws);
+
+  const room = rooms.get(msg.documentId);
+  const existingUsers = [...room].map(c => ({ id: c.user.id, name: c.user.email }));
+  room.add(ws);
+
+  ws.send(JSON.stringify({ type: 'room_users', users: existingUsers }));
   broadcast(msg.documentId, { type: 'user_joined', user: { id: ws.user.id, name: ws.user.email } }, ws);
 }
 

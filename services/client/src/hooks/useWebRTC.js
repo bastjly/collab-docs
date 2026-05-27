@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useCallSounds } from './useCallSounds';
+import { CALL_MESSAGE_TYPE } from '@collab-docs/shared';
 
 const STUN = { iceServers: [{ urls: 'stun:stun.cloudflare.com:3478' }] };
 
@@ -13,12 +14,13 @@ export const CALL_STATE = {
 export function useWebRTC(send, on, documentId) {
   const [callState, _setCallState] = useState(CALL_STATE.IDLE);
   const [isMuted, setIsMuted] = useState(false);
-  const [caller, setCaller] = useState(null);
+  const [callerId, setCallerId] = useState(null);
 
   const pc = useRef(null);
   const localStream = useRef(null);
   const pendingOffer = useRef(null);
   const remoteAudioRef = useRef(null);
+  const peerIdRef = useRef(null);
 
   const callStateRef = useRef(CALL_STATE.IDLE);
   const prevCallStateRef = useRef(CALL_STATE.IDLE);
@@ -51,7 +53,8 @@ export function useWebRTC(send, on, documentId) {
     localStream.current?.getTracks().forEach(t => t.stop());
     localStream.current = null;
     pendingOffer.current = null;
-    setCaller(null);
+    peerIdRef.current = null;
+    setCallerId(null);
     setIsMuted(false);
     setCallState(CALL_STATE.IDLE);
   }, [setCallState]);
@@ -59,7 +62,7 @@ export function useWebRTC(send, on, documentId) {
   const createPeerConnection = useCallback(() => {
     const conn = new RTCPeerConnection(STUN);
     conn.onicecandidate = ({ candidate }) => {
-      if (candidate) send({ type: 'call_ice', candidate });
+      if (candidate) send({ type: CALL_MESSAGE_TYPE.ICE, candidate, targetUserId: peerIdRef.current });
     };
     conn.ontrack = (event) => {
       if (remoteAudioRef.current) remoteAudioRef.current.srcObject = event.streams[0];
@@ -77,15 +80,16 @@ export function useWebRTC(send, on, documentId) {
     return stream;
   };
 
-  const startCall = useCallback(async () => {
+  const startCall = useCallback(async (targetUserId) => {
     try {
+      peerIdRef.current = targetUserId;
       setCallState(CALL_STATE.CALLING);
       const stream = await getMicrophoneStream();
       pc.current = createPeerConnection();
       stream.getTracks().forEach(track => pc.current.addTrack(track, stream));
       const offer = await pc.current.createOffer();
       await pc.current.setLocalDescription(offer);
-      send({ type: 'call_offer', offer });
+      send({ type: CALL_MESSAGE_TYPE.OFFER, offer, targetUserId });
     } catch (err) {
       console.error("Erreur au démarrage de l'appel", err);
       cleanup();
@@ -93,7 +97,7 @@ export function useWebRTC(send, on, documentId) {
   }, [send, createPeerConnection, cleanup, setCallState]);
 
   const endCall = useCallback(() => {
-    send({ type: 'call_end' });
+    send({ type: CALL_MESSAGE_TYPE.END, targetUserId: peerIdRef.current });
     cleanup();
   }, [send, cleanup]);
 
@@ -106,7 +110,7 @@ export function useWebRTC(send, on, documentId) {
       await pc.current.setRemoteDescription(new RTCSessionDescription(pendingOffer.current));
       const answer = await pc.current.createAnswer();
       await pc.current.setLocalDescription(answer);
-      send({ type: 'call_answer', answer });
+      send({ type: CALL_MESSAGE_TYPE.ANSWER, answer, targetUserId: peerIdRef.current });
       pendingOffer.current = null;
       setCallState(CALL_STATE.IN_CALL);
     } catch (err) {
@@ -116,7 +120,7 @@ export function useWebRTC(send, on, documentId) {
   }, [send, createPeerConnection, cleanup, setCallState]);
 
   const rejectCall = useCallback(() => {
-    send({ type: 'call_rejected' });
+    send({ type: CALL_MESSAGE_TYPE.REJECTED, targetUserId: peerIdRef.current });
     cleanup();
   }, [send, cleanup]);
 
@@ -125,37 +129,13 @@ export function useWebRTC(send, on, documentId) {
     setIsMuted(m => !m);
   }, []);
 
-  const restartCallOffer = useCallback(async () => {
-    if (!localStream.current) return;
-    if (pc.current) {
-      pc.current.onconnectionstatechange = null;
-      pc.current.close();
-    }
-    pc.current = createPeerConnection();
-    localStream.current.getTracks().forEach(t => pc.current.addTrack(t, localStream.current));
-    const offer = await pc.current.createOffer();
-    await pc.current.setLocalDescription(offer);
-    send({ type: 'call_offer', offer });
-    setCallState(CALL_STATE.CALLING);
-  }, [send, createPeerConnection, setCallState]);
-
-  const joinCall = useCallback(() => {
-    send({ type: 'call_join_request' });
-  }, [send]);
-
-
   useEffect(() => {
     const handleIncomingOffer = ({ offer, userId }) => {
       if (callStateRef.current !== CALL_STATE.IDLE) return;
       pendingOffer.current = offer;
-      setCaller(userId);
+      peerIdRef.current = userId;
+      setCallerId(userId);
       setCallState(CALL_STATE.INCOMING);
-    };
-
-    const handleJoinRequest = () => {
-      const isActiveCall = [CALL_STATE.CALLING, CALL_STATE.IN_CALL].includes(callStateRef.current);
-      if (!isActiveCall) return;
-      restartCallOffer();
     };
 
     const handleAnswer = async ({ answer }) => {
@@ -171,25 +151,23 @@ export function useWebRTC(send, on, documentId) {
     };
 
     const unsubscribers = [
-      on('call_offer', handleIncomingOffer),
-      on('call_join_request', handleJoinRequest),
-      on('call_answer', handleAnswer),
-      on('call_ice', handleIceCandidate),
-      on('call_end', cleanup),
-      on('call_rejected', cleanup),
-      on('call_ended', handleCallEnded),
+      on(CALL_MESSAGE_TYPE.OFFER, handleIncomingOffer),
+      on(CALL_MESSAGE_TYPE.ANSWER, handleAnswer),
+      on(CALL_MESSAGE_TYPE.ICE, handleIceCandidate),
+      on(CALL_MESSAGE_TYPE.END, cleanup),
+      on(CALL_MESSAGE_TYPE.REJECTED, cleanup),
+      on(CALL_MESSAGE_TYPE.ENDED, handleCallEnded),
     ];
 
     return () => unsubscribers.forEach(unsub => unsub());
-  }, [on, cleanup, restartCallOffer, documentId, setCallState]);
+  }, [on, cleanup, documentId, setCallState]);
 
   return {
     callState,
     isMuted,
-    caller,
+    callerId,
     startCall,
     endCall,
-    joinCall,
     acceptCall,
     rejectCall,
     toggleMute,

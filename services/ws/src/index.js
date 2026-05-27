@@ -9,6 +9,7 @@ import { PrismaClient } from '@prisma/client';
 import { rooms, activeCalls } from './store.js';
 import { broadcast, broadcastAll } from './broadcast.js';
 import { handleJoin, handleDocumentChange, handleCursor } from './handlers/document.js';
+import { CALL_MESSAGE_TYPE } from '@collab-docs/shared';
 import { handleCallOffer, handleCallEnd, handleCallRejected, handleCallSignaling } from './handlers/call.js';
 import { handleChatMessage } from './handlers/chat.js';
 
@@ -25,12 +26,11 @@ function handleMessage(ws, data) {
     case 'join':               handleJoin(ws, msg); break;
     case 'document_change':    handleDocumentChange(ws, msg); break;
     case 'cursor':             handleCursor(ws, msg); break;
-    case 'call_offer':         handleCallOffer(ws, msg, wss.clients); break;
-    case 'call_end':           handleCallEnd(ws, msg, wss.clients); break;
-    case 'call_rejected':      handleCallRejected(ws, msg, wss.clients); break;
-    case 'call_join_request':
-    case 'call_answer':
-    case 'call_ice':           handleCallSignaling(ws, msg); break;
+    case CALL_MESSAGE_TYPE.OFFER:    handleCallOffer(ws, msg, wss.clients); break;
+    case CALL_MESSAGE_TYPE.END:      handleCallEnd(ws, msg, wss.clients); break;
+    case CALL_MESSAGE_TYPE.REJECTED: handleCallRejected(ws, msg, wss.clients); break;
+    case CALL_MESSAGE_TYPE.ANSWER:
+    case CALL_MESSAGE_TYPE.ICE:      handleCallSignaling(ws, msg); break;
     case 'chat_message':       handleChatMessage(ws, msg); break;
   }
 }
@@ -61,7 +61,7 @@ wss.on('connection', async (ws, req) => {
     if (rooms.get(ws.documentId)?.size === 0) {
       rooms.delete(ws.documentId);
       if (activeCalls.delete(ws.documentId)) {
-        broadcastAll(wss.clients, { type: 'call_ended', documentId: ws.documentId });
+        broadcastAll(wss.clients, { type: CALL_MESSAGE_TYPE.ENDED, documentId: ws.documentId });
       }
     }
   });
@@ -77,7 +77,7 @@ wss.on('connection', async (ws, req) => {
   }
 
   ws.user = dbUser;
-  ws.send(JSON.stringify({ type: 'active_calls', documentIds: [...activeCalls] }));
+  ws.send(JSON.stringify({ type: CALL_MESSAGE_TYPE.ACTIVE_CALLS, documentIds: [...activeCalls] }));
 
   ready = true;
   for (const data of pending) handleMessage(ws, data);

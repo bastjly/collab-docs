@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { CALL_MESSAGE_TYPE } from '@collab-docs/shared';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWebSocket } from '@/hooks/useWebSocket';
@@ -37,19 +38,19 @@ export function DocumentsPage() {
   useEffect(() => { refresh(); }, [refresh]);
 
   useEffect(() => {
-    return on('active_calls', ({ documentIds }) => {
+    return on(CALL_MESSAGE_TYPE.ACTIVE_CALLS, ({ documentIds }) => {
       setActiveCalls(new Set(documentIds));
     });
   }, [on]);
 
   useEffect(() => {
-    return on('call_started', ({ documentId }) => {
+    return on(CALL_MESSAGE_TYPE.STARTED, ({ documentId }) => {
       setActiveCalls(prev => new Set([...prev, documentId]));
     });
   }, [on]);
 
   useEffect(() => {
-    return on('call_ended', ({ documentId }) => {
+    return on(CALL_MESSAGE_TYPE.ENDED, ({ documentId }) => {
       setActiveCalls(prev => {
         const next = new Set(prev);
         next.delete(documentId);

@@ -1,23 +1,42 @@
-import { Phone, PhoneOff, PhoneIncoming, Mic, MicOff, Loader2 } from 'lucide-react';
+import { Phone, PhoneOff, Mic, MicOff, Loader2, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
-export function CallBar({ callState, isMuted, isCallActive, onCall, onJoin, onHangUp, onToggleMute, remoteAudioRef }) {
+export function CallBar({ callState, isMuted, collaborators, onCall, onHangUp, onToggleMute, remoteAudioRef }) {
   return (
     <div className="flex items-center gap-2">
       <audio ref={remoteAudioRef} autoPlay />
 
-      {callState === 'idle' && !isCallActive && (
-        <Button size="sm" variant="outline" onClick={onCall}>
-          <Phone className="w-4 h-4 mr-2" />
-          Appeler les collaborateurs du document
-        </Button>
-      )}
-
-      {callState === 'idle' && isCallActive && (
-        <Button size="sm" variant="outline" onClick={onJoin}>
-          <PhoneIncoming className="w-4 h-4 mr-2" />
-          Rejoindre l'appel en cours
-        </Button>
+      {callState === 'idle' && collaborators.length > 0 && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm" variant="outline">
+              <Phone className="w-4 h-4 mr-2" />
+              Appeler
+              <ChevronDown className="w-3 h-3 ml-1.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {collaborators.map(collaborator => (
+              <DropdownMenuItem
+                key={collaborator.id}
+                disabled={!collaborator.isOnline}
+                onClick={() => collaborator.isOnline && onCall(collaborator.id)}
+                className="flex items-center justify-between gap-4"
+              >
+                <span>{collaborator.name}</span>
+                <span className={`text-[10px] font-medium ${collaborator.isOnline ? 'text-green-500' : 'text-muted-foreground'}`}>
+                  {collaborator.isOnline ? '● en ligne' : '○ hors ligne'}
+                </span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       )}
 
       {callState === 'calling' && (

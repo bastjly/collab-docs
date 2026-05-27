@@ -6,12 +6,10 @@ import prisma from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const upload = multer({ dest: path.join(__dirname, '../../uploads'),
-  limits: {
-    fileSize: 50 * 1024 * 1024,
-    files: 1
-  },
- });
+const upload = multer({
+  dest: path.join(__dirname, '../../uploads'),
+  limits: { fileSize: 50 * 1024 * 1024, files: 1 },
+});
 
 const router = Router();
 router.use(requireAuth);
@@ -183,13 +181,20 @@ router.get('/:id/download', async (req, res) => {
 });
 
 router.get('/:id/collaborators', async (req, res) => {
-  const doc = await findAccessibleDoc(req.params.id, req.user, { id: true });
+  const doc = await findAccessibleDoc(req.params.id, req.user, {
+    id: true,
+    createdBy: { select: { id: true, name: true, email: true } }
+  });
   if (!doc) return res.status(404).json({ error: 'Document introuvable' });
   const perms = await prisma.documentPermission.findMany({
     where: { documentId: req.params.id },
     include: { user: { select: { id: true, name: true, email: true } } }
   });
-  res.json(perms.map(p => p.user));
+  const invited = perms.map(p => p.user);
+  const allUsers = invited.some(u => u.id === doc.createdBy.id)
+    ? invited
+    : [doc.createdBy, ...invited];
+  res.json(allUsers);
 });
 
 router.post('/:id/invite', async (req, res) => {

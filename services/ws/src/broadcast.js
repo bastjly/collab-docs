@@ -8,6 +8,15 @@ export function broadcast(documentId, message, exclude) {
   });
 }
 
+export function sendToUser(documentId, targetUserId, message) {
+  const raw = JSON.stringify(message);
+  rooms.get(documentId)?.forEach(client => {
+    if (client.user?.id === targetUserId && client.readyState === 1) {
+      client.send(raw);
+    }
+  });
+}
+
 export function broadcastAll(clients, message) {
   const raw = JSON.stringify(message);
   for (const client of clients) {
