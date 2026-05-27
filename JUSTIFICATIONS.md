@@ -46,6 +46,14 @@ Côté documents, les admins et superadmins voient tous les documents de la plat
 
 ---
 
+## Sécurité et analyse statique du code
+
+On a utilisé **SonarQube** pour faire une analyse SAST du projet. L'idée était de scanner le code à la recherche de failles potentielles sans avoir à les trouver manuellement.
+
+L'analyse a mis en évidence quelques points qu'on a corrigés dans la foulée. Ça nous a permis d'avoir un regard extérieur sur la qualité et la sécurité du code, au-delà de ce qu'on aurait pu repérer nous-mêmes lors des revues de PR.
+
+---
+
 ## Choix organisationnels
 
 Le projet a été découpé en grandes fonctionnalités qui ont été développées de manière itérative. On a commencé par le socle commun : authentification, gestion des documents et arborescence de fichiers. Une fois cette base stable, on a ajouté les fonctionnalités temps réel (édition collaborative, appels audio) puis les fonctionnalités avancées (2FA, gestion des permissions, chat).
