@@ -2,7 +2,8 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { useWebRTC } from '@/hooks/useWebRTC';
+import { useWebRTC, CALL_STATE } from '@/hooks/useWebRTC';
+import { CALL_MESSAGE_TYPE } from '@collab-docs/shared';
 import { CallBar } from '@/components/CallBar';
 import { CallIncomingModal } from '@/components/CallIncomingModal';
 import { InviteDialog } from '@/components/InviteDialog';
@@ -109,6 +110,26 @@ export function DocumentPage() {
   const { send, on } = useWebSocket(token, documentId);
   const { callState, isMuted, callerId, startCall, endCall, acceptCall, rejectCall, toggleMute, remoteAudioRef } = useWebRTC(send, on, documentId);
 
+  const [hasActiveCall, setHasActiveCall] = useState(false);
+
+  useEffect(() => {
+    return on(CALL_MESSAGE_TYPE.ACTIVE_CALLS, ({ documentIds }) => {
+      setHasActiveCall(documentIds.includes(documentId));
+    });
+  }, [on, documentId]);
+
+  useEffect(() => {
+    return on(CALL_MESSAGE_TYPE.STARTED, ({ documentId: id }) => {
+      if (id === documentId) setHasActiveCall(true);
+    });
+  }, [on, documentId]);
+
+  useEffect(() => {
+    return on(CALL_MESSAGE_TYPE.ENDED, ({ documentId: id }) => {
+      if (id === documentId) setHasActiveCall(false);
+    });
+  }, [on, documentId]);
+
   useEffect(() => {
     fetch(`${API}/api/documents/${documentId}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -204,7 +225,7 @@ export function DocumentPage() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <CallIncomingModal
-        open={callState === 'incoming'}
+        open={callState === CALL_STATE.INCOMING}
         callerName={collaborators.find(u => u.id === callerId)?.name ?? 'Collaborateur'}
         onAccept={acceptCall}
         onReject={rejectCall}
@@ -244,6 +265,7 @@ export function DocumentPage() {
           </Button>
           <CallBar
             callState={callState}
+            hasActiveCall={hasActiveCall}
             isMuted={isMuted}
             collaborators={callableUsers}
             onCall={startCall}

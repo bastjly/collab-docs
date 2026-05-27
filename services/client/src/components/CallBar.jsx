@@ -7,10 +7,16 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-export function CallBar({ callState, isMuted, collaborators, onCall, onHangUp, onToggleMute, remoteAudioRef }) {
+export function CallBar({ callState, hasActiveCall, isMuted, collaborators, onCall, onHangUp, onToggleMute, remoteAudioRef }) {
   return (
     <div className="flex items-center gap-2">
       <audio ref={remoteAudioRef} autoPlay />
+
+      {callState === 'idle' && hasActiveCall && (
+        <span className="text-sm text-orange-500 font-medium flex items-center gap-1.5">
+          Appel en cours
+        </span>
+      )}
 
       {callState === 'idle' && collaborators.length > 0 && (
         <DropdownMenu>

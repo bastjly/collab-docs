@@ -69,7 +69,10 @@ export function useWebRTC(send, on, documentId) {
     };
     conn.onconnectionstatechange = () => {
       if (conn.connectionState === 'connected') setCallState(CALL_STATE.IN_CALL);
-      if (['disconnected', 'failed', 'closed'].includes(conn.connectionState)) cleanup();
+      if (['disconnected', 'failed', 'closed'].includes(conn.connectionState)) {
+        if (peerIdRef.current) send({ type: CALL_MESSAGE_TYPE.END, targetUserId: peerIdRef.current });
+        cleanup();
+      }
     };
     return conn;
   }, [send, cleanup, setCallState]);
@@ -127,6 +130,19 @@ export function useWebRTC(send, on, documentId) {
   const toggleMute = useCallback(() => {
     localStream.current?.getAudioTracks().forEach(track => { track.enabled = !track.enabled; });
     setIsMuted(m => !m);
+  }, []);
+
+  // Libère le micro et la peer connection quand l'utilisateur quitte la page
+  useEffect(() => {
+    return () => {
+      if (pc.current) {
+        pc.current.onconnectionstatechange = null; // évite que le handler fire sur composant démonté
+        pc.current.close();
+        pc.current = null;
+      }
+      localStream.current?.getTracks().forEach(t => t.stop());
+      localStream.current = null;
+    };
   }, []);
 
   useEffect(() => {
