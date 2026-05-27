@@ -8,6 +8,11 @@ import authRoutes from './routes/auth.js';
 import usersRoutes from './routes/users.js';
 import documentsRoutes from './routes/documents.js';
 
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'changeme_very_long_secret_key') {
+  console.error('FATAL: JWT_SECRET manquant ou laissé sur la valeur par défaut. Définissez un secret fort dans .env.');
+  process.exit(1);
+}
+
 const app = express();
 const PORT = process.env.API_PORT || 3001;
 
