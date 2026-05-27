@@ -153,15 +153,24 @@ router.get('/:id/collaborators', async (req, res) => {
 
 router.post('/:id/invite', async (req, res) => {
   const { user_id } = req.body;
-  const doc = await prisma.document.findFirst({ where: { id: req.params.id, deletedAt: null }, select: { createdById: true } });
+  const doc = await prisma.document.findFirst({ where: { id: req.params.id, deletedAt: null }, select: { createdById: true, parentId: true } });
   if (!doc) return res.status(404).json({ error: 'Document introuvable' });
   const isOwner = doc.createdById === req.user.id;
   const isAdmin = req.user.role === 'ADMIN' || req.user.role === 'SUPERADMIN';
   if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Accès refusé' });
-  await prisma.documentPermission.upsert({
-    where: { documentId_userId: { documentId: req.params.id, userId: user_id } },
-    update: {},
-    create: { documentId: req.params.id, userId: user_id }
+
+  const idsToGrant = [req.params.id];
+  let parentId = doc.parentId;
+  for (let depth = 0; depth < 50 && parentId; depth++) {
+    const parent = await prisma.document.findFirst({ where: { id: parentId, deletedAt: null }, select: { parentId: true } });
+    if (!parent) break;
+    idsToGrant.push(parentId);
+    parentId = parent.parentId;
+  }
+
+  await prisma.documentPermission.createMany({
+    data: idsToGrant.map(docId => ({ documentId: docId, userId: user_id })),
+    skipDuplicates: true
   });
   res.json({ success: true });
 });
