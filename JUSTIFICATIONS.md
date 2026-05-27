@@ -31,6 +31,21 @@ La base de données est accessible uniquement depuis l'API. Le serveur WebSocket
 
 ---
 
+## Hiérarchie des rôles et rôle SUPERADMIN
+
+On a mis en place trois niveaux de rôles : `USER`, `ADMIN` et `SUPERADMIN`. Au départ on pensait s'en sortir avec deux niveaux, mais on a rapidement vu qu'un seul rôle d'admin posait un problème : n'importe quel admin aurait pu se promouvoir lui-même ou donner/enlever des droits d'admin, sans aucun contrôle.
+
+Un `ADMIN` peut gérer les utilisateurs : créer des comptes, bloquer ou débloquer des gens, consulter la liste des membres.
+
+Le `SUPERADMIN` a deux capacités en plus que l'admin classique n'a pas :
+
+- **Changer les rôles** : seul un SUPERADMIN peut promouvoir ou rétrograder un utilisateur. Un ADMIN ne peut pas se passer lui-même SUPERADMIN, ni donner ce rôle à quelqu'un d'autre.
+- **Créer des comptes SUPERADMIN** : un ADMIN peut créer des USER ou des ADMIN, mais pas des SUPERADMIN. Seul un SUPERADMIN peut en créer un autre.
+
+Côté documents, les admins et superadmins voient tous les documents de la plateforme sans avoir besoin d'être invités, ce qui leur permet d'intervenir sur le contenu si besoin.
+
+---
+
 ## Choix organisationnels
 
 Le projet a été découpé en grandes fonctionnalités qui ont été développées de manière itérative. On a commencé par le socle commun : authentification, gestion des documents et arborescence de fichiers. Une fois cette base stable, on a ajouté les fonctionnalités temps réel (édition collaborative, appels audio) puis les fonctionnalités avancées (2FA, gestion des permissions, chat).
