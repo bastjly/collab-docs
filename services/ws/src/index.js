@@ -109,11 +109,7 @@ wss.on('connection', async (ws, req) => {
   }
 
   ws.documentId = null;
-
-  // L'écouteur est attaché immédiatement (avant l'await DB) pour ne pas perdre
-  // les premiers messages — notamment le 'join' que le client envoie dès l'ouverture.
-  // Les messages reçus avant la fin de la vérification en base sont mis en file,
-  // puis rejoués une fois la connexion prête.
+  
   let ready = false;
   const pending = [];
   ws.on('message', (data) => {

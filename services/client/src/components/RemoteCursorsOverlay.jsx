@@ -1,13 +1,11 @@
 import { getCaretCoordinates } from '@/lib/caret';
 import { colorForUser } from '@/lib/cursorColor';
 
-// cursors : { [userId]: { position, name } }
-// scrollTick : compteur incrémenté à chaque scroll/resize pour forcer le recalcul.
+
 export function RemoteCursorsOverlay({ textareaRef, value, scrollTick, cursors }) {
   const textarea = textareaRef.current;
   if (!textarea) return null;
 
-  // value et scrollTick sont dans les deps de rendu : référencés pour relire les coords.
   void value;
   void scrollTick;
 
@@ -24,8 +22,6 @@ export function RemoteCursorsOverlay({ textareaRef, value, scrollTick, cursors }
         const color = colorForUser(userId);
         const x = left - scrollLeft;
         const y = top - scrollTop;
-        // Étiquette au-dessus du caret, sauf trop près du haut : alors en dessous,
-        // pour ne pas être coupée par l'overflow de la couche.
         const labelAbove = y >= 16;
         return (
           <div key={userId} style={{ position: 'absolute', top: y, left: x }}>

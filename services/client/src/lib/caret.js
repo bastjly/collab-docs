@@ -1,8 +1,3 @@
-// Calcule la position pixel d'un index de caractère dans un <textarea>,
-// via un div miroir qui réplique le rendu du textarea.
-// Coordonnées retournées relatives au content-box (scroll NON soustrait).
-
-// Propriétés de rendu à répliquer du textarea vers le miroir.
 const MIRRORED_PROPS = [
   'boxSizing', 'width', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
   'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth',
@@ -40,7 +35,6 @@ export function getCaretCoordinates(textarea, index) {
   div.textContent = textarea.value.slice(0, index);
 
   const span = document.createElement('span');
-  // Au moins un caractère pour mesurer, même en fin de texte.
   span.textContent = textarea.value.slice(index) || '.';
   div.appendChild(span);
 
