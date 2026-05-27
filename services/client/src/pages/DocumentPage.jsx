@@ -5,21 +5,28 @@ import { useWebSocket } from '@/hooks/useWebSocket';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { CallBar } from '@/components/CallBar';
 import { CallIncomingModal } from '@/components/CallIncomingModal';
+import { InviteDialog } from '@/components/InviteDialog';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, UserPlus } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export function DocumentPage() {
   const { id: documentId } = useParams();
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
 
   const [document, setDocument] = useState(null);
   const [content, setContent] = useState('');
   const saveTimeout = useRef(null);
 
   const [isCallActive, setIsCallActive] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const canInvite = !!(document && user && (
+    document.createdById === user.id ||
+    user.role === 'ADMIN' ||
+    user.role === 'SUPERADMIN'
+  ));
 
   const { send, on } = useWebSocket(token, documentId);
   const { callState, isMuted, startCall, endCall, joinCall, acceptCall, rejectCall, toggleMute, remoteAudioRef } = useWebRTC(send, on, documentId);
@@ -88,6 +95,12 @@ export function DocumentPage() {
         onAccept={acceptCall}
         onReject={rejectCall}
       />
+      <InviteDialog
+        docId={documentId}
+        token={token}
+        open={inviteOpen}
+        onOpenChange={setInviteOpen}
+      />
       <header className="border-b px-6 py-3 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate('/documents')}>
@@ -95,16 +108,24 @@ export function DocumentPage() {
           </Button>
           <h1 className="text-lg font-semibold">{document.name}</h1>
         </div>
-        <CallBar
-          callState={callState}
-          isMuted={isMuted}
-          isCallActive={isCallActive}
-          onCall={startCall}
-          onJoin={joinCall}
-          onHangUp={endCall}
-          onToggleMute={toggleMute}
-          remoteAudioRef={remoteAudioRef}
-        />
+        <div className="flex items-center gap-2">
+          {canInvite && (
+            <Button variant="outline" size="sm" onClick={() => setInviteOpen(true)}>
+              <UserPlus className="w-4 h-4 mr-1.5" />
+              Inviter
+            </Button>
+          )}
+          <CallBar
+            callState={callState}
+            isMuted={isMuted}
+            isCallActive={isCallActive}
+            onCall={startCall}
+            onJoin={joinCall}
+            onHangUp={endCall}
+            onToggleMute={toggleMute}
+            remoteAudioRef={remoteAudioRef}
+          />
+        </div>
       </header>
 
       <main className="flex-1 flex flex-col p-6">
