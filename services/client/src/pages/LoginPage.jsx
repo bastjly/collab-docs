@@ -27,8 +27,12 @@ export function LoginPage() {
     });
     const data = await res.json();
     setLoading(false);
+    if (!res.ok) {
+      if (data.requires2FA) setRequires2FA(true);
+      if (data.error) setError(data.error);
+      return;
+    }
     if (data.requires2FA) { setRequires2FA(true); return; }
-    if (!res.ok) { setError(data.error); return; }
     login(data.token);
   }
 
