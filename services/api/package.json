@@ -5,9 +5,9 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "db:push": "prisma db push",
-    "db:migrate": "prisma migrate dev",
-    "db:studio": "prisma studio",
+    "db:push": "dotenv -e ../../.env -- prisma db push",
+    "db:migrate": "dotenv -e ../../.env -- prisma migrate dev",
+    "db:studio": "dotenv -e ../../.env -- prisma studio",
     "seed": "node prisma/seed.js",
     "postinstall": "prisma generate"
   },
@@ -26,6 +26,7 @@
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
+    "dotenv-cli": "^7.4.4",
     "nodemon": "^3.1.0",
     "prisma": "^5.15.0"
   }

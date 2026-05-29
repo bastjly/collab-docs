@@ -31,13 +31,21 @@ Renseigner toutes les valeurs dans `.env`.
 npm install
 ```
 
-### 3. Initialiser la base de données (premier lancement)
+### 3. Lancer la base de données
+
+```bash
+docker compose up -d
+```
+
+### 4. Initialiser la base de données (premier lancement uniquement)
 
 ```bash
 npm run seed
 ```
 
-### 4. Lancer tous les services
+> Applique le schéma Prisma (`db push`) puis insère les données initiales.
+
+### 5. Lancer tous les services
 
 ```bash
 npm run dev

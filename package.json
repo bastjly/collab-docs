@@ -4,7 +4,7 @@
   "workspaces": ["services/*"],
   "scripts": {
     "dev": "nf start",
-    "seed": "npm run seed -w @collab-docs/api"
+    "seed": "npm run db:push -w @collab-docs/api && npm run seed -w @collab-docs/api"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
